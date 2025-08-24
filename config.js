@@ -5,14 +5,14 @@
 
 const config = {
   // El nombre que mostrará el bot en los menús y mensajes.
-  botName: "JulesBot",
+  botName: "BOT DE YO SOY YO",
 
   // El nombre del propietario del bot.
-  ownerName: "TuNombre",
+  ownerName: "YO SOY YO",
 
   // Números de los propietarios del bot (en formato de WhatsApp, ej: '5211234567890').
   // El bot puede tener funcionalidades exclusivas para estos números.
-  ownerNumbers: ["5211234567890", "otro_numero_sin_el_mas"],
+  ownerNumbers: ["573133374132"],
 
   // APIs (si las tienes, si no, déjalas como están)
   // No es necesario modificar estas si usas las APIs públicas de Adonix.
