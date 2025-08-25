@@ -3,7 +3,6 @@ import path from 'path';
 
 const dbPath = path.resolve('./database/blocked.json');
 
-// Función para leer la base de datos de bloqueados
 function readBlockedDb() {
   try {
     const data = fs.readFileSync(dbPath, 'utf8');
@@ -13,7 +12,6 @@ function readBlockedDb() {
   }
 }
 
-// Función para escribir en la base de datos de bloqueados
 function writeBlockedDb(data) {
   try {
     fs.writeFileSync(dbPath, JSON.stringify(data, null, 2));
@@ -28,13 +26,13 @@ const unblockCommand = {
   description: "Desbloquea a un usuario.",
 
   async execute({ sock, msg, config }) {
-    const senderNumber = msg.sender.split('@')[0];
+    const senderId = msg.key.participant || msg.key.remoteJid;
+    const senderNumber = senderId.split('@')[0];
 
     if (!config.ownerNumbers.includes(senderNumber)) {
       return sock.sendMessage(msg.key.remoteJid, { text: "Este comando solo puede ser utilizado por el propietario del bot." }, { quoted: msg });
     }
 
-    // Determinar a quién desbloquear
     const mentionedJid = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
     const quotedUserJid = msg.message?.extendedTextMessage?.contextInfo?.participant;
     const userToUnblock = mentionedJid || quotedUserJid;
@@ -48,7 +46,6 @@ const unblockCommand = {
       return sock.sendMessage(msg.key.remoteJid, { text: "Este usuario no está bloqueado." }, { quoted: msg });
     }
 
-    // Filtrar para remover al usuario
     blockedUsers = blockedUsers.filter(jid => jid !== userToUnblock);
     writeBlockedDb(blockedUsers);
 

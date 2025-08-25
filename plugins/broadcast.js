@@ -5,7 +5,8 @@ const broadcastCommand = {
   aliases: ["bc"],
 
   async execute({ sock, msg, args, config }) {
-    const senderNumber = msg.sender.split('@')[0];
+    const senderId = msg.key.participant || msg.key.remoteJid;
+    const senderNumber = senderId.split('@')[0];
 
     if (!config.ownerNumbers.includes(senderNumber)) {
       return sock.sendMessage(msg.key.remoteJid, { text: "Este comando solo puede ser utilizado por el propietario del bot." }, { quoted: msg });
@@ -27,7 +28,6 @@ const broadcastCommand = {
 
       for (const groupId of groupIds) {
         try {
-          // Añadimos un pequeño retraso para no saturar la API de WhatsApp
           await new Promise(resolve => setTimeout(resolve, 1000));
           await sock.sendMessage(groupId, { text: `*-- MENSAJE DE BROADCAST --*\n\n${messageToBroadcast}` });
           successCount++;

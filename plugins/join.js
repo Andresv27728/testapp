@@ -4,7 +4,8 @@ const joinCommand = {
   description: "Hace que el bot se una a un grupo mediante un enlace de invitación.",
 
   async execute({ sock, msg, args, config }) {
-    const senderNumber = msg.sender.split('@')[0];
+    const senderId = msg.key.participant || msg.key.remoteJid;
+    const senderNumber = senderId.split('@')[0];
 
     if (!config.ownerNumbers.includes(senderNumber)) {
       return sock.sendMessage(msg.key.remoteJid, { text: "Este comando solo puede ser utilizado por el propietario del bot." }, { quoted: msg });
@@ -16,7 +17,6 @@ const joinCommand = {
     }
 
     try {
-      // Extraer el código del enlace
       const inviteCode = inviteLink.split('chat.whatsapp.com/')[1];
       if (!inviteCode) {
         return sock.sendMessage(msg.key.remoteJid, { text: "El enlace no parece tener un código de invitación válido." }, { quoted: msg });

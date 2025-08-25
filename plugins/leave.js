@@ -4,7 +4,8 @@ const leaveCommand = {
   description: "Hace que el bot se salga del grupo actual.",
 
   async execute({ sock, msg, config }) {
-    const senderNumber = msg.sender.split('@')[0];
+    const senderId = msg.key.participant || msg.key.remoteJid;
+    const senderNumber = senderId.split('@')[0];
     const from = msg.key.remoteJid;
 
     if (!config.ownerNumbers.includes(senderNumber)) {
@@ -20,7 +21,7 @@ const leaveCommand = {
       await sock.groupLeave(from);
     } catch (e) {
       console.error("Error en el comando leave:", e);
-      await sock.sendMessage(msg.sender, { text: "Ocurrió un error al intentar salir del grupo." });
+      await sock.sendMessage(senderId, { text: "Ocurrió un error al intentar salir del grupo." });
     }
   }
 };

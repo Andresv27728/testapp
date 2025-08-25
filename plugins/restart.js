@@ -4,17 +4,15 @@ const restartCommand = {
   description: "Reinicia el bot. (Solo para el propietario)",
 
   async execute({ sock, msg, config }) {
-    const senderNumber = msg.sender.split('@')[0];
+    const senderId = msg.key.participant || msg.key.remoteJid;
+    const senderNumber = senderId.split('@')[0];
 
-    // Verificar si el que envía es el propietario
     if (!config.ownerNumbers.includes(senderNumber)) {
-      await sock.sendMessage(msg.key.remoteJid, { text: "Este comando solo puede ser utilizado por el propietario del bot." }, { quoted: msg });
-      return;
+      return sock.sendMessage(msg.key.remoteJid, { text: "Este comando solo puede ser utilizado por el propietario del bot." }, { quoted: msg });
     }
 
     try {
       await sock.sendMessage(msg.key.remoteJid, { text: "Reiniciando el bot..." }, { quoted: msg });
-      // Cierra el proceso. El gestor de procesos (PM2, Docker, etc.) debería reiniciarlo.
       process.exit(0);
     } catch (error) {
       console.error("Error al intentar reiniciar:", error);

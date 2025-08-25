@@ -28,7 +28,9 @@ const blockCommand = {
   description: "Bloquea a un usuario para que no pueda usar el bot.",
 
   async execute({ sock, msg, config }) {
-    const senderNumber = msg.sender.split('@')[0];
+    // Usamos el ID del participante, que puede ser LID o JID
+    const senderId = msg.key.participant || msg.key.remoteJid;
+    const senderNumber = senderId.split('@')[0];
 
     if (!config.ownerNumbers.includes(senderNumber)) {
       return sock.sendMessage(msg.key.remoteJid, { text: "Este comando solo puede ser utilizado por el propietario del bot." }, { quoted: msg });
