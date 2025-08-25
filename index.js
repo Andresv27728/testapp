@@ -90,7 +90,41 @@ async function connectToWhatsApp() {
 
   sock.ev.on('creds.update', saveCreds);
 
-  // --- MANEJO DE MENSAJES (sin cambios) ---
+  // --- MANEJO DE BIENVENIDA/DESPEDIDA ---
+  sock.ev.on('group-participants.update', async (event) => {
+    const { id, participants, action } = event;
+    const dbPath = path.resolve('./database/groups.json');
+    let db = {};
+    try {
+      const data = fs.readFileSync(dbPath, 'utf8');
+      db = JSON.parse(data);
+    } catch (e) { /* El archivo puede no existir, es seguro ignorar */ }
+
+    // Si la bienvenida no está activada para este grupo, no hacer nada
+    if (!db[id] || !db[id].welcome) {
+      return;
+    }
+
+    try {
+      const metadata = await sock.groupMetadata(id);
+      for (const p of participants) {
+        const userJid = p;
+        const userName = `@${userJid.split('@')[0]}`;
+
+        if (action === 'add') {
+          const welcomeMsg = `¡Bienvenido/a al grupo *${metadata.subject}*, ${userName}! 🎉`;
+          await sock.sendMessage(id, { text: welcomeMsg, mentions: [userJid] });
+        } else if (action === 'remove') {
+          const goodbyeMsg = `Adiós, ${userName}. Te extrañaremos. 👋`;
+          await sock.sendMessage(id, { text: goodbyeMsg, mentions: [userJid] });
+        }
+      }
+    } catch (e) {
+      console.error("Error en el evento group-participants.update:", e);
+    }
+  });
+
+  // --- MANEJO DE MENSAJES ---
   sock.ev.on('messages.upsert', async (m) => {
     const msg = m.messages[0];
     if (!msg.message || msg.key.fromMe) return;

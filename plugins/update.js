@@ -27,14 +27,15 @@ const updateCommand = {
         console.log(`Git stderr: ${stderr}`);
       }
 
-      let response = `*Resultado de la Actualización:*\n\n\`\`\`${stdout}\`\`\``;
       if (stdout.includes("Already up to date.") || stdout.includes("Ya está actualizado.")) {
-        response = "El bot ya está en la última versión. No hay actualizaciones pendientes.";
+        await sock.sendMessage(msg.key.remoteJid, { text: "El bot ya está en la última versión. No hay actualizaciones pendientes." }, { quoted: msg });
       } else {
-        response += "\n\nActualización completada. Se recomienda reiniciar el bot para aplicar todos los cambios.";
+        await sock.sendMessage(msg.key.remoteJid, { text: `*Actualización completada.*\n\n\`\`\`${stdout}\`\`\`\n\nReiniciando el bot para aplicar los cambios...` }, { quoted: msg });
+        // Usamos un pequeño timeout para dar tiempo a que el mensaje se envíe antes de cerrar el proceso
+        setTimeout(() => {
+          process.exit(0);
+        }, 3000); // 3 segundos
       }
-
-      await sock.sendMessage(msg.key.remoteJid, { text: response }, { quoted: msg });
     });
   }
 };
