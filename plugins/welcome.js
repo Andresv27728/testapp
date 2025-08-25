@@ -45,8 +45,7 @@ const welcomeCommand = {
     // 2. Verificar si el usuario es admin del grupo
     try {
       const metadata = await sock.groupMetadata(from);
-      const senderJid = msg.key.participant || msg.key.remoteJid;
-      const senderIsAdmin = metadata.participants.find(p => p.id === senderJid)?.admin;
+      const senderIsAdmin = metadata.participants.find(p => p.id === msg.sender)?.admin;
 
       if (!senderIsAdmin) {
         await sock.sendMessage(from, { text: "No tienes permisos de administrador para usar este comando." }, { quoted: msg });

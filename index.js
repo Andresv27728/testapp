@@ -134,14 +134,18 @@ async function connectToWhatsApp() {
     const msg = m.messages[0];
     if (!msg.message || msg.key.fromMe) return;
 
+    // Normalizamos el JID del sender para evitar problemas con LID
+    const sender = msg.key.participant || msg.key.remoteJid;
+    // Añadimos la propiedad al objeto msg para fácil acceso en los plugins
+    msg.sender = sender;
+
     // --- Lógica de Bloqueo ---
-    const senderJid = msg.key.participant || msg.key.remoteJid;
     const blockedDbPath = path.resolve('./database/blocked.json');
     try {
       const data = fs.readFileSync(blockedDbPath, 'utf8');
       const blockedUsers = JSON.parse(data);
-      if (blockedUsers.includes(senderJid)) {
-        return console.log(`Mensaje ignorado de usuario bloqueado: ${senderJid}`);
+      if (blockedUsers.includes(sender)) {
+        return console.log(`Mensaje ignorado de usuario bloqueado: ${sender}`);
       }
     } catch (e) { /* Ignorar si el archivo no existe */ }
 
@@ -159,14 +163,14 @@ async function connectToWhatsApp() {
     // --- Lógica de Comandos ---
     if (command) {
       // --- Lógica de Cooldown ---
-      if (cooldowns.has(senderJid)) {
-        const lastCommandTime = cooldowns.get(senderJid);
+      if (cooldowns.has(sender)) {
+        const lastCommandTime = cooldowns.get(sender);
         const now = Date.now();
         const timeDiff = (now - lastCommandTime) / 1000;
         if (timeDiff < COOLDOWN_SECONDS) {
           // Opcional: enviar un mensaje de "espera"
           // await sock.sendMessage(from, { text: `Por favor, espera ${Math.ceil(COOLDOWN_SECONDS - timeDiff)} segundos.` }, { quoted: msg });
-          return console.log(`Comando ignorado por cooldown para: ${senderJid}`);
+          return console.log(`Comando ignorado por cooldown para: ${sender}`);
         }
       }
 
@@ -178,7 +182,7 @@ async function connectToWhatsApp() {
         await command.execute({ sock, msg, args, commands, config, testCache });
 
         // Actualizar el timestamp del último comando
-        cooldowns.set(senderJid, Date.now());
+        cooldowns.set(sender, Date.now());
 
       } catch (error) {
         console.error(`Error al ejecutar el comando ${commandName}:`, error);

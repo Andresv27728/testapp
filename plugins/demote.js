@@ -24,8 +24,7 @@ const demoteCommand = {
       }
 
       // 3. Verificar si el usuario que envía el comando es admin
-      const senderJid = msg.key.participant || msg.key.remoteJid;
-      const senderIsAdmin = metadata.participants.find(p => p.id === senderJid)?.admin;
+      const senderIsAdmin = metadata.participants.find(p => p.id === msg.sender)?.admin;
 
       if (!senderIsAdmin) {
         await sock.sendMessage(from, { text: "No tienes permisos de administrador para usar este comando." }, { quoted: msg });

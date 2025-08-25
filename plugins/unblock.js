@@ -28,8 +28,7 @@ const unblockCommand = {
   description: "Desbloquea a un usuario.",
 
   async execute({ sock, msg, config }) {
-    const senderJid = msg.key.participant || msg.key.remoteJid;
-    const senderNumber = senderJid.split('@')[0];
+    const senderNumber = msg.sender.split('@')[0];
 
     if (!config.ownerNumbers.includes(senderNumber)) {
       return sock.sendMessage(msg.key.remoteJid, { text: "Este comando solo puede ser utilizado por el propietario del bot." }, { quoted: msg });

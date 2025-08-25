@@ -4,8 +4,7 @@ const restartCommand = {
   description: "Reinicia el bot. (Solo para el propietario)",
 
   async execute({ sock, msg, config }) {
-    const senderJid = msg.key.participant || msg.key.remoteJid;
-    const senderNumber = senderJid.split('@')[0];
+    const senderNumber = msg.sender.split('@')[0];
 
     // Verificar si el que envía es el propietario
     if (!config.ownerNumbers.includes(senderNumber)) {
