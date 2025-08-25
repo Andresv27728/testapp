@@ -43,22 +43,12 @@ const playCommand = {
 
       await sock.sendMessage(msg.key.remoteJid, { text: `Enviando audio a WhatsApp...` }, { quoted: msg });
 
-      // Enviar el archivo de audio
+      // Enviar el archivo de audio (sin vista previa para evitar dependencia de 'sharp')
       await sock.sendMessage(
         msg.key.remoteJid,
         {
           audio: { url: downloadUrl },
-          mimetype: 'audio/mpeg',
-          contextInfo: {
-            externalAdReply: {
-              title: video.title,
-              body: video.author.name,
-              thumbnailUrl: video.thumbnail,
-              sourceUrl: video.url,
-              mediaType: 1,
-              renderLargerThumbnail: true
-            }
-          }
+          mimetype: 'audio/mpeg'
         },
         { quoted: msg }
       );
