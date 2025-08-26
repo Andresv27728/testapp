@@ -8,49 +8,32 @@ const play2Command = {
 
   async execute({ sock, msg, args, config }) {
     if (args.length === 0) {
-      await sock.sendMessage(msg.key.remoteJid, { text: "Por favor, proporciona el nombre de un video. Ejemplo: `play2 Never Gonna Give You Up`" }, { quoted: msg });
-      return;
+      return sock.sendMessage(msg.key.remoteJid, { text: "Por favor, proporciona el nombre de un video." }, { quoted: msg });
     }
 
     const query = args.join(' ');
-    console.log(`[play2.js] Iniciando búsqueda para: "${query}"`);
-    let waitingMsg = await sock.sendMessage(msg.key.remoteJid, { text: `Buscando "${query}"...` }, { quoted: msg });
+    const waitingMsg = await sock.sendMessage(msg.key.remoteJid, { text: `Buscando "${query}"...` }, { quoted: msg });
 
     try {
       const searchResult = await yts(query);
       const video = searchResult.videos[0];
 
       if (!video) {
-        console.log("[play2.js] No se encontraron resultados en yt-search.");
-        await sock.sendMessage(msg.key.remoteJid, { text: "No se encontraron resultados para tu búsqueda." }, { edit: waitingMsg.key });
-        return;
+        return sock.sendMessage(msg.key.remoteJid, { text: "No se encontraron resultados para tu búsqueda." }, { edit: waitingMsg.key });
       }
-      console.log(`[play2.js] Video encontrado: ${video.title} (${video.url})`);
 
-      const videoUrl = video.url;
       const caption = `*${video.title}*\n*Autor:* ${video.author.name}`;
+      await sock.sendMessage(msg.key.remoteJid, { text: `Procesando video para *${video.title}*...` }, { edit: waitingMsg.key });
 
-      await sock.sendMessage(msg.key.remoteJid, { text: `Procesando video... (Esto puede tardar)` }, { edit: waitingMsg.key });
+      const apiUrl = `${config.api.ytmp4}?url=${video.url}`;
+      const response = await axios.get(apiUrl, { timeout: 120000 });
 
-      const apiUrl = `${config.api.ytmp4}?url=${videoUrl}`;
-      console.log(`[play2.js] Llamando a la API de video: ${apiUrl}`);
-
-      const response = await axios.get(apiUrl, {
-        responseType: 'json',
-        timeout: 120000 // 2 minutos de timeout
-      });
-
-      console.log("[play2.js] Respuesta de la API recibida. Datos:", JSON.stringify(response.data, null, 2));
-
-      const downloadUrl = response.data?.resultado?.url;
+      // Corregido para parsear la respuesta correcta de la API
+      const downloadUrl = response.data?.data?.download;
 
       if (!downloadUrl) {
-        console.log("[play2.js] La API no devolvió una URL de descarga válida en la respuesta.");
         throw new Error("La API no devolvió una URL de descarga válida.");
       }
-      console.log(`[play2.js] URL de descarga obtenida: ${downloadUrl}`);
-
-      await sock.sendMessage(msg.key.remoteJid, { text: `Enviando video a WhatsApp...` }, { quoted: msg });
 
       await sock.sendMessage(
         msg.key.remoteJid,
@@ -61,14 +44,13 @@ const play2Command = {
         },
         { quoted: msg }
       );
-      console.log("[play2.js] Envío de video a WhatsApp completado.");
 
     } catch (error) {
-      console.error("[play2.js] Ha ocurrido un error:", error);
+      console.error("Error en el comando play2:", error.message);
       if (error.code === 'ECONNABORTED') {
-        await sock.sendMessage(msg.key.remoteJid, { text: "El servidor de descargas tardó demasiado en responder. Intenta de nuevo." }, { quoted: msg });
+        await sock.sendMessage(msg.key.remoteJid, { text: "El servidor de descargas tardó demasiado en responder." }, { quoted: msg });
       } else {
-        await sock.sendMessage(msg.key.remoteJid, { text: `Ocurrió un error al procesar la solicitud. Detalles: ${error.message}` }, { quoted: msg });
+        await sock.sendMessage(msg.key.remoteJid, { text: "Ocurrió un error al procesar la solicitud de video." }, { quoted: msg });
       }
     }
   }
