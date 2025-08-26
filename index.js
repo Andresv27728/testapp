@@ -22,7 +22,6 @@ const logger = pino({ level: 'warn' });
 const commands = new Map();
 const testCache = new Map();
 const cooldowns = new Map();
-const iaConversations = new Map(); // Para conversaciones con la IA
 export const subBots = new Map();
 
 // --- CONFIGURACIÓN DE TIEMPOS ---
@@ -133,21 +132,6 @@ export async function startBot(sessionId, isSubBot = false, requesterMsg = null)
     const commandName = body.trim().split(/ +/)[0].toLowerCase();
     const command = commands.get(commandName);
 
-    // --- Lógica de seguimiento de IA ---
-    const quotedMsgId = msg.message?.extendedTextMessage?.contextInfo?.stanzaId;
-    const conversation = iaConversations.get(sender);
-
-    if (quotedMsgId && conversation && conversation.lastMessageId === quotedMsgId && conversation.count < 5) {
-        // Es una respuesta a un mensaje de IA, tratar como continuación
-        const iaCommand = commands.get('ia');
-        if (iaCommand) {
-            try {
-                await iaCommand.execute({ sock, msg, args: body.trim().split(/ +/), commands, config, testCache, subBots, iaConversations });
-            } catch (e) { console.error("Error en continuación de IA:", e) }
-            return; // Terminar procesamiento
-        }
-    }
-
     if (command) {
       if (cooldowns.has(sender)) {
         const timeDiff = (Date.now() - cooldowns.get(sender)) / 1000;
@@ -156,7 +140,8 @@ export async function startBot(sessionId, isSubBot = false, requesterMsg = null)
 
       try {
         await new Promise(resolve => setTimeout(resolve, RESPONSE_DELAY_MS));
-        await command.execute({ sock, msg, args, commands, config, testCache, subBots, iaConversations });
+        // Se elimina iaConversations de los argumentos
+        await command.execute({ sock, msg, args, commands, config, testCache, subBots });
         cooldowns.set(sender, Date.now());
       } catch (error) {
         console.error(`Error en comando ${commandName}:`, error);
