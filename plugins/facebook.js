@@ -17,30 +17,24 @@ const facebookCommand = {
     const waitingMsg = await sock.sendMessage(msg.key.remoteJid, { text: `Procesando enlace de Facebook...` }, { quoted: msg });
 
     try {
-      // Usamos la API proporcionada por el usuario
       const apiUrl = `https://api.dreaded.site/api/facebook?url=${encodeURIComponent(url)}`;
 
+      // Pedimos la respuesta como un buffer de datos binarios
       const response = await axios.get(apiUrl, {
-        timeout: 120000 // 2 minutos de timeout
+        responseType: 'arraybuffer',
+        timeout: 120000
       });
 
-      const data = response.data;
+      const videoBuffer = Buffer.from(response.data, 'binary');
 
-      // LOG DE DIAGNÓSTICO
-      console.log("Respuesta de la API de Facebook:", JSON.stringify(data, null, 2));
-
-      // Asumimos que la respuesta tiene una estructura como { "url": "..." } o similar
-      // Es importante inspeccionar la respuesta real si esto falla.
-      const downloadUrl = data.url || data.link || data.download;
-
-      if (!downloadUrl) {
-        throw new Error("La respuesta de la API no contiene un enlace de descarga válido.");
+      if (!videoBuffer || videoBuffer.length < 1000) { // Chequeo simple de que el buffer no esté vacío
+        throw new Error("La API no devolvió un video válido.");
       }
 
       await sock.sendMessage(msg.key.remoteJid, {
-        video: { url: downloadUrl },
+        video: videoBuffer,
         mimetype: 'video/mp4',
-        caption: data.title || "Video de Facebook"
+        caption: "Aquí tienes tu video de Facebook."
       }, { quoted: msg });
 
       await sock.sendMessage(msg.key.remoteJid, { text: `✅ Video de Facebook enviado.`, edit: waitingMsg.key });
@@ -50,7 +44,7 @@ const facebookCommand = {
       if (error.code === 'ECONNABORTED') {
         await sock.sendMessage(msg.key.remoteJid, { text: "El servidor de descargas de Facebook tardó demasiado en responder." }, { quoted: msg });
       } else {
-        await sock.sendMessage(msg.key.remoteJid, { text: "No se pudo descargar el video de Facebook. El enlace podría ser inválido, privado o la API estar fallando." }, { quoted: msg });
+        await sock.sendMessage(msg.key.remoteJid, { text: "No se pudo descargar el video. El enlace podría ser inválido, privado o la API estar fallando." }, { quoted: msg });
       }
     }
   }
