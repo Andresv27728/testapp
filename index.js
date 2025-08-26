@@ -6,7 +6,8 @@ import Baileys, {
   DisconnectReason,
 } from '@whiskeysockets/baileys';
 import pino from 'pino';
-import qrcode from 'qrcode-terminal';
+import qrcodeTerminal from 'qrcode-terminal';
+import qrcode from 'qrcode';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -22,7 +23,8 @@ const logger = pino({ level: 'warn' });
 const commands = new Map();
 const testCache = new Map();
 const cooldowns = new Map();
-export const subBots = new Map(); // Mapa para almacenar instancias de sub-bots
+export const subBots = new Map();
+const pendingSerbotRequests = new Set(); // Para evitar spam de serbot
 
 // --- CONFIGURACIÓN DE TIEMPOS ---
 const COOLDOWN_SECONDS = 5;
@@ -82,23 +84,29 @@ export async function startBot(sessionId, requesterSocket = null, requesterMsg =
 
     if (qr) {
       if (requesterSocket) {
-        // Enviar el QR como texto al usuario que lo solicitó
+        // Enviar el QR como imagen al usuario que lo solicitó
         try {
+          const qrBuffer = await qrcode.toBuffer(qr);
           await requesterSocket.sendMessage(requesterMsg.key.remoteJid, {
-            text: `Escanea el siguiente código QR para convertirte en un sub-bot. Tienes 60 segundos.\n\n${qr}`
+            image: qrBuffer,
+            caption: `Escanea este código QR para convertirte en un sub-bot.`
           }, { quoted: requesterMsg });
         } catch (e) {
-          console.error("Error enviando QR de sub-bot:", e);
+          console.error("Error enviando QR de sub-bot como imagen:", e);
         }
       } else if (sessionId === 'main_session') {
         // Imprimir el QR en la consola para el bot principal
         console.log('Escanea este código QR con tu teléfono:');
-        qrcode.generate(qr, { small: true });
+        qrcodeTerminal.generate(qr, { small: true });
       }
     }
 
     if (connection === 'close') {
       const statusCode = (lastDisconnect.error instanceof Boom)?.output?.statusCode;
+      // Si la sesión se cierra y estaba pendiente, se elimina de pendientes
+      if (pendingSerbotRequests.has(sessionId)) {
+        pendingSerbotRequests.delete(sessionId);
+      }
       if (statusCode !== DisconnectReason.loggedOut) {
         console.log(`Reconectando sesión ${sessionId}...`);
         startBot(sessionId, requesterSocket, requesterMsg);
@@ -111,6 +119,10 @@ export async function startBot(sessionId, requesterSocket = null, requesterMsg =
       }
     } else if (connection === 'open') {
       console.log(`Sesión ${sessionId} conectada exitosamente.`);
+       // Si la sesión se abre y estaba pendiente, se elimina de pendientes
+      if (pendingSerbotRequests.has(sessionId)) {
+        pendingSerbotRequests.delete(sessionId);
+      }
       if (sessionId === 'main_session') {
         console.log('\n================================================');
         console.log('            BOT PRINCIPAL CONECTADO');
@@ -148,7 +160,7 @@ export async function startBot(sessionId, requesterSocket = null, requesterMsg =
 
       try {
         await new Promise(resolve => setTimeout(resolve, RESPONSE_DELAY_MS));
-        await command.execute({ sock, msg, args, commands, config, testCache, subBots });
+        await command.execute({ sock, msg, args, commands, config, testCache, subBots, pendingSerbotRequests });
         cooldowns.set(sender, Date.now());
       } catch (error) {
         console.error(`Error en comando ${commandName}:`, error);

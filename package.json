@@ -23,6 +23,7 @@
     "wa-sticker-formatter": "^4.4.4",
     "@vitalets/google-translate-api": "^9.2.0",
     "lyrics-finder": "^21.7.0",
-    "wikipedia": "^2.0.0"
+    "wikipedia": "^2.0.0",
+    "qrcode": "^1.5.3"
   }
 }
