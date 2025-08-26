@@ -8,6 +8,8 @@ const categoryEmojis = {
   'propietario': '👑',
   'utilidades': '🛠️',
   'informacion': '📚',
+  'subbots': '🤖',
+  'ias': '🧠',
   'default': '⚙️'
 };
 
@@ -22,17 +24,19 @@ const menuCommand = {
 
     // Agrupar comandos por categoría
     commands.forEach(command => {
-      if (!command.category || command.name === 'test') return; // Ocultar el comando test
+      // Ocultar comandos sin categoría o el comando 'test'
+      if (!command.category || command.name === 'test') return;
+
+      // Si la categoría no existe en el objeto, crearla
       if (!categories[command.category]) {
         categories[command.category] = [];
       }
-      // No añadir alias al menú principal
-      if (command.name && !commands.get(command.name)?.aliases?.includes(command.name)) {
-         categories[command.category].push(command.name);
-      }
+
+      // Añadir el comando a su categoría
+      categories[command.category].push(command);
     });
 
-    // Ordenar categorías
+    // Ordenar categorías alfabéticamente
     const sortedCategories = Object.keys(categories).sort();
 
     // --- Construcción del nuevo menú ---
@@ -41,17 +45,20 @@ const menuCommand = {
     menuText += `│  Hola, *${msg.pushName}*!\n`;
     menuText += `│  Aquí tienes la lista de mis comandos.\n`;
     menuText += `│\n`;
-    menuText += `├─「 *Comandos Disponibles* 」\n`;
 
     for (const category of sortedCategories) {
       const emoji = categoryEmojis[category] || categoryEmojis['default'];
+      menuText += `├─「 *${emoji} ${category.charAt(0).toUpperCase() + category.slice(1)}* 」\n`;
+
+      const commandList = categories[category]
+        .filter((cmd, index, self) => self.findIndex(c => c.name === cmd.name) === index) // Evitar duplicados por alias
+        .map(cmd => `│  • \`${cmd.name}\`: _${cmd.description || 'Sin descripción'}_`)
+        .join('\n');
+
+      menuText += `${commandList}\n`;
       menuText += `│\n`;
-      menuText += `│  *${emoji} ${category.charAt(0).toUpperCase() + category.slice(1)}*\n`;
-      const commandList = categories[category].map(cmd => `\`${cmd}\``).join(', ');
-      menuText += `│  ${commandList}\n`;
     }
 
-    menuText += `│\n`;
     menuText += `╰───「 _by ${config.ownerName}_ 」───╯`;
 
     await sock.sendMessage(msg.key.remoteJid, { text: menuText }, { quoted: msg });
