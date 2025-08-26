@@ -67,8 +67,6 @@ export async function startBot(sessionId, requesterSocket = null, requesterMsg =
     },
     logger,
     browser: (sessionId === 'main_session') ? ['JulesBot', 'Chrome', '1.0.0'] : ['SubBot', 'Chrome', '1.0.0'],
-    // Desactivar la impresión de QR para manejarlo manualmente
-    printQRInTerminal: sessionId === 'main_session',
   });
 
   // Guardar la instancia del bot en el mapa
@@ -82,16 +80,23 @@ export async function startBot(sessionId, requesterSocket = null, requesterMsg =
   sock.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect, qr } = update;
 
-    if (qr && requesterSocket) {
-      // Enviar el QR al usuario que lo solicitó
-      try {
-        const qrBuffer = await qrcode.toBuffer(qr);
-        await requesterSocket.sendMessage(requesterMsg.key.remoteJid, {
-          image: qrBuffer,
-          caption: `Escanea este código QR para convertirte en un sub-bot. Tienes 60 segundos.`
-        }, { quoted: requesterMsg });
-      } catch (e) {
-        console.error("Error enviando QR de sub-bot:", e);
+    if (qr) {
+      if (requesterSocket) {
+        // Enviar el QR al usuario que lo solicitó (sub-bot)
+        try {
+          const qrBuffer = await qrcode.toBuffer(qr);
+          await requesterSocket.sendMessage(requesterMsg.key.remoteJid, {
+            image: qrBuffer,
+            caption: `Escanea este código QR para convertirte en un sub-bot. Tienes 60 segundos.`
+          }, { quoted: requesterMsg });
+        } catch (e) {
+          console.error("Error enviando QR de sub-bot:", e);
+        }
+      }
+      if (sessionId === 'main_session') {
+        // Imprimir el QR en la consola para el bot principal
+        console.log('Escanea este código QR con tu teléfono:');
+        qrcode.generate(qr, { small: true });
       }
     }
 
