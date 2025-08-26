@@ -82,18 +82,15 @@ export async function startBot(sessionId, requesterSocket = null, requesterMsg =
 
     if (qr) {
       if (requesterSocket) {
-        // Enviar el QR al usuario que lo solicitó (sub-bot)
+        // Enviar el QR como texto al usuario que lo solicitó
         try {
-          const qrBuffer = await qrcode.toBuffer(qr);
           await requesterSocket.sendMessage(requesterMsg.key.remoteJid, {
-            image: qrBuffer,
-            caption: `Escanea este código QR para convertirte en un sub-bot. Tienes 60 segundos.`
+            text: `Escanea el siguiente código QR para convertirte en un sub-bot. Tienes 60 segundos.\n\n${qr}`
           }, { quoted: requesterMsg });
         } catch (e) {
           console.error("Error enviando QR de sub-bot:", e);
         }
-      }
-      if (sessionId === 'main_session') {
+      } else if (sessionId === 'main_session') {
         // Imprimir el QR en la consola para el bot principal
         console.log('Escanea este código QR con tu teléfono:');
         qrcode.generate(qr, { small: true });
