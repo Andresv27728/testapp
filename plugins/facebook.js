@@ -26,6 +26,9 @@ const facebookCommand = {
 
       const data = response.data;
 
+      // LOG DE DIAGNÓSTICO
+      console.log("Respuesta de la API de Facebook:", JSON.stringify(data, null, 2));
+
       // Asumimos que la respuesta tiene una estructura como { "url": "..." } o similar
       // Es importante inspeccionar la respuesta real si esto falla.
       const downloadUrl = data.url || data.link || data.download;
