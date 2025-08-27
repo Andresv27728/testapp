@@ -19,6 +19,9 @@ const imagenCommand = {
       const apiUrl = `https://api.akuari.my.id/search/googleimage?query=${encodeURIComponent(query)}`;
       const apiResponse = await axios.get(apiUrl);
 
+      // LOG DE DIAGNÓSTICO
+      console.log("Respuesta de la API de Google Image:", JSON.stringify(apiResponse.data, null, 2));
+
       const images = apiResponse.data?.result;
 
       if (!images || images.length === 0) {
