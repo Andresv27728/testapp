@@ -20,6 +20,7 @@ const config = {
   api: {
     ytmp3: "https://myapiadonix.vercel.app/api/ytmp3",
     ytmp4: "https://myapiadonix.vercel.app/api/ytmp4",
+    gemini: "AIzaSyDEww4IKqba9tgfb8ndMDBOoLkl-nSy4tw" // Tu API Key de Gemini
   }
 };
 
