@@ -1,69 +1,61 @@
-import { useMultiFileAuthState, DisconnectReason, makeCacheableSignalKeyStore, fetchLatestBaileysVersion } from "@whiskeysockets/baileys";
-import qrcode from "qrcode";
+import Baileys, { useMultiFileAuthState, DisconnectReason, makeCacheableSignalKeyStore, fetchLatestBaileysVersion } from "@whiskeysockets/baileys";
 import NodeCache from "node-cache";
 import fs from "fs";
 import path from "path";
 import pino from 'pino';
 import chalk from 'chalk';
-import { makeWASocket } from '../lib/simple.js';
-import { fileURLToPath } from 'url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 const jadi = 'jadibots';
 
-// --- Mensajes de UI ---
-const rtx = `❀ *Hazte Sub Bot*
-✦ Escanea el QR desde tu WhatsApp:
-✐ Más opciones → Dispositivos vinculados → Vincular nuevo dispositivo → Con QR
-☁︎ *Importante:* El QR es válido por 30 segundos.`.trim();
+const rtx2 = `❀ *Conexión por Código*
 
-const rtx2 = `❀ *Hazte Sub Bot*
 ✧ Usa el código manualmente:
-✐ Más opciones → Dispositivos vinculados → Vincular nuevo dispositivo → Con número
+✐ En tu WhatsApp principal: Más opciones → Dispositivos vinculados → Vincular un dispositivo → Vincular con el número de teléfono.
 ☁︎ *Importante:* El código es válido por 30 segundos.`.trim();
 
-// --- Función Principal del Sub-bot ---
-async function yukiJadiBot(options) {
-    let { pathYukiJadiBot, m, conn, args, usedPrefix, command } = options;
-    const mcode = args[0] && /(--code|code)/.test(args[0].trim()) ? true : false;
 
-    if (!fs.existsSync(pathYukiJadiBot)) {
-        fs.mkdirSync(pathYukiJadiBot, { recursive: true });
+async function startSubBot(options) {
+    let { path, m, conn } = options;
+
+    if (!fs.existsSync(path)) {
+        fs.mkdirSync(path, { recursive: true });
     }
 
     let { version } = await fetchLatestBaileysVersion();
-    const { state, saveCreds } = await useMultiFileAuthState(pathYukiJadiBot);
+    const { state, saveCreds } = await useMultiFileAuthState(path);
 
     const connectionOptions = {
         logger: pino({ level: "fatal" }),
-        printQRInTerminal: !mcode,
-        auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, pino({ level: 'silent' })) },
-        browser: mcode ? ['Ubuntu', 'Chrome', '110.0.5585.95'] : ['Sub Bot', 'Chrome', '2.0.0'],
+        printQRInTerminal: false,
+        auth: state,
+        browser: ['Sub-Bot', 'Chrome', '2.0.0'],
         version,
         shouldSyncHistoryMessage: () => false,
+        patchMessageBeforeSending: (message) => {
+            const requiresPatch = !!(message.buttonsMessage || message.templateMessage || message.listMessage);
+            if (requiresPatch) {
+                message = { viewOnceMessage: { message: { messageContextInfo: { deviceListMetadataVersion: 2, deviceListMetadata: {} }, ...message }}};
+            }
+            return message;
+        },
+        authStrategy: new Baileys.PairingCodeAuth(state)
     };
 
-    let sock = makeWASocket(connectionOptions);
+    let sock = Baileys.default(connectionOptions);
     if (!global.conns) global.conns = [];
     global.conns.push(sock);
 
     const handlerModule = await import('../handler.js');
-    // Pasamos 'true' para indicar que este es un sub-bot
     sock.handler = (msg) => handlerModule.handler.call(sock, msg, true);
 
     async function connectionUpdate(update) {
-        const { connection, lastDisconnect, qr } = update;
+        const { connection, lastDisconnect } = update;
 
-        if (qr && !mcode) {
-            let txtQR = await conn.sendMessage(m.chat, { image: await qrcode.toBuffer(qr, { scale: 8 }), caption: rtx }, { quoted: m });
-            setTimeout(() => conn.sendMessage(m.chat, { delete: txtQR.key }).catch(() => {}), 30000);
-        }
-
-        if (sock.pairingCode && mcode) {
+        if (sock.pairingCode) {
             let code = sock.pairingCode.match(/.{1,4}/g)?.join("-");
             let txtCode = await conn.sendMessage(m.chat, { text: rtx2 }, { quoted: m });
             let codeBot = await conn.sendMessage(m.chat, { text: code }, { quoted: m });
+            sock.pairingCode = null;
             setTimeout(() => conn.sendMessage(m.chat, { delete: txtCode.key }).catch(() => {}), 30000);
             setTimeout(() => conn.sendMessage(m.chat, { delete: codeBot.key }).catch(() => {}), 30000);
         }
@@ -71,7 +63,7 @@ async function yukiJadiBot(options) {
         if (connection === 'open') {
             let userName = sock.user.name || 'Sub-bot';
             console.log(chalk.bold.cyanBright(`SUB-BOT CONECTADO: ${userName} (${sock.user.id.split(':')[0]})`));
-            conn.reply(m.chat, `✅ Sub-bot conectado como *${userName}*.`, m);
+            conn.reply(m.chat, `✅ Sub-bot conectado exitosamente como *${userName}*.`, m);
         }
 
         if (connection === 'close') {
@@ -80,11 +72,11 @@ async function yukiJadiBot(options) {
             let i = global.conns.findIndex(c => c.user?.id === sock.user?.id);
             if (i >= 0) global.conns.splice(i, 1);
             if (reason !== DisconnectReason.loggedOut) {
-                yukiJadiBot(options);
+                startSubBot(options);
             } else {
                 conn.reply(m.chat, "La sesión del sub-bot se ha cerrado.", m);
-                if (fs.existsSync(pathYukiJadiBot)) {
-                    fs.rmSync(pathYukiJadiBot, { recursive: true, force: true });
+                if (fs.existsSync(path)) {
+                    fs.rmSync(path, { recursive: true, force: true });
                 }
             }
         }
@@ -95,15 +87,12 @@ async function yukiJadiBot(options) {
     sock.ev.on('creds.update', saveCreds);
 }
 
-
-// --- Comando principal que inicia el proceso ---
 const serbotCommand = {
     name: "serbot",
     category: "subbots",
-    description: "Crea una sesión de sub-bot. Usa 'serbot code' para un código de emparejamiento.",
-    aliases: ["qr", "code"],
+    description: "Crea una sesión de sub-bot usando un código de emparejamiento.",
 
-    async execute({ sock, msg, args, config, command }) {
+    async execute({ sock, msg, config }) {
         const MAX_SUB_BOTS = 5;
         const senderId = msg.sender;
         const senderNumber = senderId.split('@')[0];
@@ -118,22 +107,19 @@ const serbotCommand = {
         }
 
         let id = `${senderId.split`@`[0]}`;
-        let pathYukiJadiBot = path.join(`./${jadi}/`, id);
+        let sessionPath = path.join(`./${jadi}/`, id);
 
-        if (fs.existsSync(pathYukiJadiBot)) {
+        if (fs.existsSync(sessionPath)) {
             return sock.sendMessage(msg.key.remoteJid, { text: "Ya tienes una sesión activa o archivos de sesión antiguos. Usa `deletesesion` primero." }, { quoted: msg });
         }
 
-        const yukiJBOptions = {
-            pathYukiJadiBot,
+        const options = {
+            path: sessionPath,
             m: msg,
             conn: sock,
-            args,
-            usedPrefix: '',
-            command
         };
 
-        yukiJadiBot(yukiJBOptions);
+        startSubBot(options);
     }
 };
 
