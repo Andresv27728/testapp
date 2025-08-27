@@ -7,7 +7,6 @@ const memeCommand = {
 
   async execute({ sock, msg }) {
     try {
-      // 1. Obtener la información del meme de la API
       const apiResponse = await axios.get('https://meme-api.com/gimme/memesenespanol');
       const meme = apiResponse.data;
 
@@ -15,13 +14,23 @@ const memeCommand = {
         throw new Error("La API de memes no devolvió una URL válida.");
       }
 
-      // 2. Descargar la imagen a un buffer
+      console.log(`[meme.js] URL de imagen obtenida: ${meme.url}`);
+
       const imageResponse = await axios.get(meme.url, {
         responseType: 'arraybuffer'
       });
+
+      // --- LOG DE DIAGNÓSTICO FINAL ---
+      const contentType = imageResponse.headers['content-type'];
+      console.log(`[meme.js] Content-Type de la respuesta de la imagen: ${contentType}`);
+
+      // Verificar si la respuesta es realmente una imagen
+      if (!contentType || !contentType.startsWith('image/')) {
+          throw new Error(`La URL no devolvió una imagen, sino un ${contentType}.`);
+      }
+
       const imageBuffer = Buffer.from(imageResponse.data, 'binary');
 
-      // 3. Enviar el buffer de la imagen
       await sock.sendMessage(msg.key.remoteJid, {
         image: imageBuffer,
         caption: `*${meme.title}*`
@@ -29,7 +38,7 @@ const memeCommand = {
 
     } catch (e) {
       console.error("Error en el comando meme:", e);
-      await sock.sendMessage(msg.key.remoteJid, { text: "No se pudo obtener un meme en este momento." }, { quoted: msg });
+      await sock.sendMessage(msg.key.remoteJid, { text: `No se pudo obtener un meme. Error: ${e.message}` }, { quoted: msg });
     }
   }
 };

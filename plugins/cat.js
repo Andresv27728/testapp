@@ -18,6 +18,12 @@ const catCommand = {
       const imageResponse = await axios.get(cat.url, {
         responseType: 'arraybuffer'
       });
+
+      const contentType = imageResponse.headers['content-type'];
+      if (!contentType || !contentType.startsWith('image/')) {
+          throw new Error(`La URL no devolvió una imagen, sino un ${contentType}.`);
+      }
+
       const imageBuffer = Buffer.from(imageResponse.data, 'binary');
 
       await sock.sendMessage(msg.key.remoteJid, {
@@ -27,7 +33,7 @@ const catCommand = {
 
     } catch (e) {
       console.error("Error en el comando cat:", e);
-      await sock.sendMessage(msg.key.remoteJid, { text: "No se pudo obtener una foto de un gato en este momento." }, { quoted: msg });
+      await sock.sendMessage(msg.key.remoteJid, { text: `No se pudo obtener una foto de un gato. Error: ${e.message}` }, { quoted: msg });
     }
   }
 };
