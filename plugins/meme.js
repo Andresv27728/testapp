@@ -7,12 +7,23 @@ const memeCommand = {
 
   async execute({ sock, msg }) {
     try {
-      // API simple para memes en español
-      const response = await axios.get('https://meme-api.com/gimme/memesenespanol');
-      const meme = response.data;
+      // 1. Obtener la información del meme de la API
+      const apiResponse = await axios.get('https://meme-api.com/gimme/memesenespanol');
+      const meme = apiResponse.data;
 
+      if (!meme || !meme.url) {
+        throw new Error("La API de memes no devolvió una URL válida.");
+      }
+
+      // 2. Descargar la imagen a un buffer
+      const imageResponse = await axios.get(meme.url, {
+        responseType: 'arraybuffer'
+      });
+      const imageBuffer = Buffer.from(imageResponse.data, 'binary');
+
+      // 3. Enviar el buffer de la imagen
       await sock.sendMessage(msg.key.remoteJid, {
-        image: { url: meme.url },
+        image: imageBuffer,
         caption: `*${meme.title}*`
       }, { quoted: msg });
 

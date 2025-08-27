@@ -8,11 +8,20 @@ const catCommand = {
 
   async execute({ sock, msg }) {
     try {
-      const response = await axios.get('https://api.thecatapi.com/v1/images/search');
-      const cat = response.data[0];
+      const apiResponse = await axios.get('https://api.thecatapi.com/v1/images/search');
+      const cat = apiResponse.data[0];
+
+      if (!cat || !cat.url) {
+        throw new Error("La API de gatos no devolvió una URL válida.");
+      }
+
+      const imageResponse = await axios.get(cat.url, {
+        responseType: 'arraybuffer'
+      });
+      const imageBuffer = Buffer.from(imageResponse.data, 'binary');
 
       await sock.sendMessage(msg.key.remoteJid, {
-        image: { url: cat.url },
+        image: imageBuffer,
         caption: "¡Aquí tienes un lindo gatito! 🐱"
       }, { quoted: msg });
 

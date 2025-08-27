@@ -8,11 +8,20 @@ const dogCommand = {
 
   async execute({ sock, msg }) {
     try {
-      const response = await axios.get('https://dog.ceo/api/breeds/image/random');
-      const dog = response.data;
+      const apiResponse = await axios.get('https://dog.ceo/api/breeds/image/random');
+      const dogImageUrl = apiResponse.data.message;
+
+      if (!dogImageUrl) {
+        throw new Error("La API de perros no devolvió una URL válida.");
+      }
+
+      const imageResponse = await axios.get(dogImageUrl, {
+        responseType: 'arraybuffer'
+      });
+      const imageBuffer = Buffer.from(imageResponse.data, 'binary');
 
       await sock.sendMessage(msg.key.remoteJid, {
-        image: { url: dog.message },
+        image: imageBuffer,
         caption: "¡Aquí tienes un lindo perrito! 🐶"
       }, { quoted: msg });
 
