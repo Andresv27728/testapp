@@ -2,6 +2,7 @@ const pingCommand = {
   name: "ping",
   category: "general",
   description: "Comprueba la velocidad de respuesta del bot.",
+  aliases: ["p"],
 
   async execute({ sock, msg }) {
     const startTime = Date.now();

@@ -20,6 +20,7 @@ const logger = pino({ level: 'warn' });
 
 // --- COLECCIONES GLOBALES ---
 const commands = new Map();
+const aliases = new Map();
 const testCache = new Map();
 const cooldowns = new Map();
 export const subBots = new Map();
@@ -38,10 +39,15 @@ async function loadCommands() {
       try {
         const commandModule = await import(path.join('file://', pluginsDir, file));
         const command = commandModule.default;
-        if (command && command.name) commands.set(command.name, command);
+        if (command && command.name) {
+          commands.set(command.name, command);
+          if (command.aliases && Array.isArray(command.aliases)) {
+            command.aliases.forEach(alias => aliases.set(alias, command.name));
+          }
+        }
       } catch (error) { console.error(`[-] Error al cargar ${file}:`, error); }
     }
-    console.log(`[+] ${commands.size} comandos cargados.`);
+    console.log(`[+] ${commands.size} comandos y ${aliases.size} alias cargados.`);
   } catch (error) { console.error(`[-] No se pudo leer la carpeta de plugins:`, error); }
 }
 
@@ -149,8 +155,13 @@ export async function startBot(sessionId, isSubBot = false, requesterMsg = null)
     } catch (e) { /* Ignorar si el archivo no existe */ }
 
     const args = body.trim().split(/ +/).slice(1);
-    const commandName = body.trim().split(/ +/)[0].toLowerCase();
-    const command = commands.get(commandName);
+    let commandName = body.trim().split(/ +/)[0].toLowerCase();
+
+    // Buscar comando por nombre o por alias
+    let command = commands.get(commandName);
+    if (!command && aliases.has(commandName)) {
+        command = commands.get(aliases.get(commandName));
+    }
 
     if (command) {
       if (cooldowns.has(sender)) {
