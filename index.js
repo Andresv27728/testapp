@@ -22,7 +22,7 @@ const logger = pino({ level: 'warn' });
 export const commands = new Map();
 export const aliases = new Map();
 export const testCache = new Map();
-const cooldowns = new Map();
+export const cooldowns = new Map();
 // El nuevo sistema de sub-bots usará global.conns
 // export const subBots = new Map();
 
