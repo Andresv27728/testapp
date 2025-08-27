@@ -1,9 +1,10 @@
-import Baileys, { useMultiFileAuthState, DisconnectReason, makeCacheableSignalKeyStore, fetchLatestBaileysVersion } from "@whiskeysockets/baileys";
+import { useMultiFileAuthState, DisconnectReason, makeCacheableSignalKeyStore, fetchLatestBaileysVersion } from "@whiskeysockets/baileys";
 import NodeCache from "node-cache";
 import fs from "fs";
 import path from "path";
 import pino from 'pino';
 import chalk from 'chalk';
+import { makeWASocket } from '../lib/simple.js';
 
 const jadi = 'jadibots';
 
@@ -11,7 +12,7 @@ const rtx2 = `❀ *Conexión por Código*
 
 ✧ Usa el código manualmente:
 ✐ En tu WhatsApp principal: Más opciones → Dispositivos vinculados → Vincular un dispositivo → Vincular con el número de teléfono.
-☁︎ *Importante:* El código es válido por 30 segundos.`.trim();
+☁︎ *Importante:* El código es válido por 45 segundos.`.trim();
 
 
 async function startSubBot(options) {
@@ -26,22 +27,16 @@ async function startSubBot(options) {
 
     const connectionOptions = {
         logger: pino({ level: "fatal" }),
-        printQRInTerminal: false,
-        auth: state,
+        printQRInTerminal: false, // Siempre falso para sub-bots
+        auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, pino({ level: 'silent' })) },
         browser: ['Sub-Bot', 'Chrome', '2.0.0'],
         version,
         shouldSyncHistoryMessage: () => false,
-        patchMessageBeforeSending: (message) => {
-            const requiresPatch = !!(message.buttonsMessage || message.templateMessage || message.listMessage);
-            if (requiresPatch) {
-                message = { viewOnceMessage: { message: { messageContextInfo: { deviceListMetadataVersion: 2, deviceListMetadata: {} }, ...message }}};
-            }
-            return message;
-        },
-        authStrategy: new Baileys.PairingCodeAuth(state)
+        // Habilitar el modo de código de emparejamiento
+        pairingCode: true
     };
 
-    let sock = Baileys.default(connectionOptions);
+    let sock = makeWASocket(connectionOptions);
     if (!global.conns) global.conns = [];
     global.conns.push(sock);
 
@@ -49,15 +44,22 @@ async function startSubBot(options) {
     sock.handler = (msg) => handlerModule.handler.call(sock, msg, true);
 
     async function connectionUpdate(update) {
-        const { connection, lastDisconnect } = update;
+        const { connection, lastDisconnect, qr } = update;
 
-        if (sock.pairingCode) {
-            let code = sock.pairingCode.match(/.{1,4}/g)?.join("-");
-            let txtCode = await conn.sendMessage(m.chat, { text: rtx2 }, { quoted: m });
-            let codeBot = await conn.sendMessage(m.chat, { text: code }, { quoted: m });
-            sock.pairingCode = null;
-            setTimeout(() => conn.sendMessage(m.chat, { delete: txtCode.key }).catch(() => {}), 30000);
-            setTimeout(() => conn.sendMessage(m.chat, { delete: codeBot.key }).catch(() => {}), 30000);
+        // El evento QR es el trigger para solicitar el código de emparejamiento
+        if (qr) {
+            try {
+                const
+                 phoneNumber = m.sender.split('@')[0];
+                let code = await sock.requestPairingCode(phoneNumber);
+                code = code.match(/.{1,4}/g)?.join("-");
+
+                await conn.sendMessage(m.chat, { text: rtx2 }, { quoted: m });
+                await conn.sendMessage(m.chat, { text: `*${code}*` }, { quoted: m });
+            } catch (e) {
+                console.error("Error solicitando el código de emparejamiento:", e);
+                conn.reply(m.chat, "Ocurrió un error al generar tu código. Inténtalo de nuevo.", m);
+            }
         }
 
         if (connection === 'open') {
@@ -72,7 +74,7 @@ async function startSubBot(options) {
             let i = global.conns.findIndex(c => c.user?.id === sock.user?.id);
             if (i >= 0) global.conns.splice(i, 1);
             if (reason !== DisconnectReason.loggedOut) {
-                startSubBot(options);
+                // No reconectar automáticamente en este modelo
             } else {
                 conn.reply(m.chat, "La sesión del sub-bot se ha cerrado.", m);
                 if (fs.existsSync(path)) {
