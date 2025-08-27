@@ -19,11 +19,12 @@ const __dirname = path.dirname(__filename);
 const logger = pino({ level: 'warn' });
 
 // --- COLECCIONES GLOBALES ---
-const commands = new Map();
-const aliases = new Map();
-const testCache = new Map();
+export const commands = new Map();
+export const aliases = new Map();
+export const testCache = new Map();
 const cooldowns = new Map();
-export const subBots = new Map();
+// El nuevo sistema de sub-bots usará global.conns
+// export const subBots = new Map();
 
 // --- CONFIGURACIÓN DE TIEMPOS ---
 const COOLDOWN_SECONDS = 5;
@@ -51,162 +52,78 @@ async function loadCommands() {
   } catch (error) { console.error(`[-] No se pudo leer la carpeta de plugins:`, error); }
 }
 
-// --- FUNCIÓN DE INICIO DE BOT ---
-export async function startBot(sessionId, isSubBot = false, requesterMsg = null) {
-  console.log(`Iniciando bot para la sesión: ${sessionId}`);
-  const sessionPath = isSubBot ? `jadibots/${sessionId}` : 'auth_info_baileys';
-  const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
+// --- FUNCIÓN DE INICIO DEL BOT PRINCIPAL ---
+async function connectToWhatsApp() {
+  const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
+  const { version, isLatest } = await fetchLatestBaileysVersion();
+  console.log(`Usando Baileys v${version.join('.')}, ¿es la última versión?: ${isLatest}`);
 
   const sock = Baileys.default({
-    version: (await fetchLatestBaileysVersion()).version,
+    version,
     auth: state,
     logger,
-    browser: isSubBot ? ['SubBot', 'Chrome', '1.0.0'] : ['JulesBot', 'Chrome', '1.0.0'],
-    printQRInTerminal: !isSubBot,
-    pairingCode: isSubBot,
+    browser: ['JulesBot', 'Chrome', '1.0.0'],
+    printQRInTerminal: true,
   });
 
-  if (isSubBot) subBots.set(sessionId, sock);
+  // Adjuntar el handler principal al socket del bot principal
+  // Esto es para alinear con la estructura que espera el nuevo código
+  const mainHandler = await import('./handler.js');
+  sock.handler = mainHandler.handler.bind(sock);
+
 
   // --- MANEJO DE EVENTOS DE CONEXIÓN ---
   sock.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect, qr } = update;
-    if (qr && !isSubBot) qrcodeTerminal.generate(qr, { small: true });
-    if (sock.authState.creds.pairingCode && isSubBot && requesterMsg) {
-      try {
-        const code = sock.authState.creds.pairingCode;
-        await sock.sendMessage(requesterMsg.key.remoteJid, { text: `Tu código de emparejamiento es: *${code}*\n\nSigue los pasos en el WhatsApp que quieres que sea el bot para vincularlo.` });
-      } catch (e) { console.error("Error enviando código de emparejamiento:", e); }
-    }
+    if (qr) qrcodeTerminal.generate(qr, { small: true });
+
     if (connection === 'close') {
-      const statusCode = (lastDisconnect.error instanceof Boom)?.output?.statusCode;
-      if (statusCode !== DisconnectReason.loggedOut) {
-        console.log(`Reconectando sesión ${sessionId}...`);
-        startBot(sessionId, isSubBot, requesterMsg);
-      } else {
-        console.log(`Sesión ${sessionId} cerrada permanentemente.`);
-        if (isSubBot) {
-          fs.rmSync(`./${sessionPath}`, { recursive: true, force: true });
-          subBots.delete(sessionId);
-        }
+      const shouldReconnect = (lastDisconnect.error instanceof Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
+      console.log('Conexión principal cerrada, reconectando...', shouldReconnect);
+      if (shouldReconnect) {
+        connectToWhatsApp();
       }
     } else if (connection === 'open') {
-      console.log(`Sesión ${sessionId} conectada.`);
-      if (!isSubBot) console.log('            BOT PRINCIPAL CONECTADO');
+      console.log('            BOT PRINCIPAL CONECTADO');
     }
   });
 
   sock.ev.on('creds.update', saveCreds);
 
   // --- MANEJO DE MENSAJES ---
-  sock.ev.on('messages.upsert', async (m) => {
-    const msg = m.messages[0];
-    if (!msg.message || msg.key.fromMe) return;
+  // El nuevo sistema usa un handler.js, así que adjuntamos el nuestro.
+  // La lógica de comandos se moverá a handler.js para ser reutilizable.
+  sock.ev.on('messages.upsert', (m) => sock.handler(m));
 
-    const sender = msg.key.participant || msg.key.remoteJid;
-    const from = msg.key.remoteJid;
-    const isGroup = from.endsWith('@g.us');
+  // --- MANEJO DE BIENVENIDA ---
+  sock.ev.on('group-participants.update', async (event) => {
+      const { id, participants, action } = event;
+      const settingsDbPath = path.resolve('./database/groupSettings.json');
+      let settings = {};
+      try {
+        const data = fs.readFileSync(settingsDbPath, 'utf8');
+        settings = JSON.parse(data);
+      } catch (e) {}
 
-    // --- Lógica de Bloqueo ---
-    const blockedDbPath = path.resolve('./database/blocked.json');
-    try {
-      const blockedData = fs.readFileSync(blockedDbPath, 'utf8');
-      if (JSON.parse(blockedData).includes(sender)) return;
-    } catch (e) {}
-
-    // --- Cargar Ajustes del Grupo ---
-    let groupSettings = {};
-    if (isGroup) {
-        const settingsDbPath = path.resolve('./database/groupSettings.json');
-        try {
-            const settingsData = fs.readFileSync(settingsDbPath, 'utf8');
-            groupSettings = JSON.parse(settingsData)[from] || {};
-        } catch(e) {}
-    }
-
-    const body = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
-
-    // --- Lógica de Anti-Link ---
-    if (isGroup && groupSettings.antilink && body.includes('chat.whatsapp.com/')) {
-        const metadata = await sock.groupMetadata(from);
-        const senderIsAdmin = metadata.participants.find(p => p.id === sender)?.admin;
-        const botIsAdmin = metadata.participants.find(p => p.id === sock.user.id.split(':')[0] + '@s.whatsapp.net')?.admin;
-        if (!senderIsAdmin && botIsAdmin) {
-            await sock.sendMessage(from, { text: "No se permiten enlaces de otros grupos." }, { quoted: msg });
-            await sock.sendMessage(from, { delete: msg.key });
-            return; // Detener procesamiento si se borra el mensaje
-        }
-    }
-
-    // --- Lógica de Prefijos ---
-    let usedPrefix = '';
-    const groupPrefix = isGroup ? groupSettings.prefix : null;
-
-    if (groupPrefix) {
-        if (!body.startsWith(groupPrefix)) return; // Si hay prefijo y no se usa, ignorar
-        usedPrefix = groupPrefix;
-    }
-
-    const bodyWithoutPrefix = body.startsWith(usedPrefix) ? body.substring(usedPrefix.length) : body;
-
-    // --- Lógica de Comandos ---
-    const args = bodyWithoutPrefix.trim().split(/ +/).slice(1);
-    let commandName = bodyWithoutPrefix.trim().split(/ +/)[0].toLowerCase();
-    let command = commands.get(commandName) || commands.get(aliases.get(commandName));
-
-    if (command) {
-      // --- Lógica de Modo Admin ---
-      if (isGroup && groupSettings.adminMode) {
-        const metadata = await sock.groupMetadata(from);
-        const senderIsAdmin = metadata.participants.find(p => p.id === sender)?.admin;
-        if (!senderIsAdmin) return; // Ignorar comando si no es admin
-      }
-
-      // --- Lógica de Cooldown ---
-      if (cooldowns.has(sender)) {
-        if ((Date.now() - cooldowns.get(sender)) / 1000 < COOLDOWN_SECONDS) return;
-      }
+      if (!settings[id]?.welcome) return;
 
       try {
-        await new Promise(resolve => setTimeout(resolve, RESPONSE_DELAY_MS));
-        await command.execute({ sock, msg, args, commands, config, testCache, subBots });
-        cooldowns.set(sender, Date.now());
-      } catch (error) {
-        console.error(`Error en comando ${commandName}:`, error);
-        await sock.sendMessage(from, { text: 'Ocurrió un error.' }, { quoted: msg });
-      }
-    }
+        const metadata = await sock.groupMetadata(id);
+        for (const p of participants) {
+          const userName = `@${p.split('@')[0]}`;
+          const message = action === 'add'
+            ? `¡Bienvenido/a al grupo *${metadata.subject}*, ${userName}! 🎉`
+            : `Adiós, ${userName}. Te extrañaremos. 👋`;
+          await sock.sendMessage(id, { text: message, mentions: [p] });
+        }
+      } catch (e) { console.error("Error en group-participants.update:", e); }
   });
 
-  // --- MANEJO DE BIENVENIDA (Solo Bot Principal) ---
-  if (!isSubBot) {
-    sock.ev.on('group-participants.update', async (event) => {
-        const { id, participants, action } = event;
-        const settingsDbPath = path.resolve('./database/groupSettings.json');
-        let settings = {};
-        try {
-          const data = fs.readFileSync(settingsDbPath, 'utf8');
-          settings = JSON.parse(data);
-        } catch (e) {}
-
-        if (!settings[id]?.welcome) return;
-
-        try {
-          const metadata = await sock.groupMetadata(id);
-          for (const p of participants) {
-            const userName = `@${p.split('@')[0]}`;
-            const message = action === 'add'
-              ? `¡Bienvenido/a al grupo *${metadata.subject}*, ${userName}! 🎉`
-              : `Adiós, ${userName}. Te extrañaremos. 👋`;
-            await sock.sendMessage(id, { text: message, mentions: [p] });
-          }
-        } catch (e) { console.error("Error en group-participants.update:", e); }
-    });
-  }
+  return sock;
 }
 
 // --- INICIO DEL BOT ---
 (async () => {
   await loadCommands();
-  startBot('main_session', false);
+  await connectToWhatsApp();
 })();
