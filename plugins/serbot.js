@@ -4,7 +4,6 @@ import fs from "fs";
 import path from "path";
 import pino from 'pino';
 import chalk from 'chalk';
-// Se elimina la importación de ../lib/simple.js
 
 const jadi = 'jadibots';
 
@@ -17,6 +16,7 @@ const rtx2 = `❀ *Conexión por Código*
 
 async function startSubBot(options) {
     let { path, m, conn } = options;
+    const mSender = m.key.remoteJid;
 
     if (!fs.existsSync(path)) {
         fs.mkdirSync(path, { recursive: true });
@@ -35,7 +35,6 @@ async function startSubBot(options) {
         pairingCode: true
     };
 
-    // Corregido: Usar Baileys.default directamente
     let sock = Baileys.default(connectionOptions);
     if (!global.conns) global.conns = [];
     global.conns.push(sock);
@@ -52,18 +51,18 @@ async function startSubBot(options) {
                 let code = await sock.requestPairingCode(phoneNumber);
                 code = code.match(/.{1,4}/g)?.join("-");
 
-                await conn.sendMessage(m.chat, { text: rtx2 }, { quoted: m });
-                await conn.sendMessage(m.chat, { text: `*${code}*` }, { quoted: m });
+                await conn.sendMessage(mSender, { text: rtx2 }, { quoted: m });
+                await conn.sendMessage(mSender, { text: `*${code}*` }, { quoted: m });
             } catch (e) {
                 console.error("Error solicitando el código de emparejamiento:", e);
-                conn.reply(m.chat, "Ocurrió un error al generar tu código. Inténtalo de nuevo.", m);
+                await conn.sendMessage(mSender, { text: "Ocurrió un error al generar tu código. Inténtalo de nuevo." }, { quoted: m });
             }
         }
 
         if (connection === 'open') {
             let userName = sock.user.name || 'Sub-bot';
             console.log(chalk.bold.cyanBright(`SUB-BOT CONECTADO: ${userName} (${sock.user.id.split(':')[0]})`));
-            conn.reply(m.chat, `✅ Sub-bot conectado exitosamente como *${userName}*.`, m);
+            await conn.sendMessage(mSender, { text: `✅ Sub-bot conectado exitosamente como *${userName}*.` }, { quoted: m });
         }
 
         if (connection === 'close') {
@@ -72,9 +71,9 @@ async function startSubBot(options) {
             let i = global.conns.findIndex(c => c.user?.id === sock.user?.id);
             if (i >= 0) global.conns.splice(i, 1);
             if (reason !== DisconnectReason.loggedOut) {
-                // No reconectar automáticamente
+                // No reconectar
             } else {
-                conn.reply(m.chat, "La sesión del sub-bot se ha cerrado.", m);
+                await conn.sendMessage(mSender, { text: "La sesión del sub-bot se ha cerrado." }, { quoted: m });
                 if (fs.existsSync(path)) {
                     fs.rmSync(path, { recursive: true, force: true });
                 }
