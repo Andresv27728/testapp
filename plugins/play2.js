@@ -4,11 +4,11 @@ import axios from 'axios';
 const play2Command = {
   name: "play2",
   category: "descargas",
-  description: "Busca y descarga una canción en formato de video (MP4).",
+  description: "Busca y descarga una canción en formato de audio (MP3) usando la API 2.",
 
-  async execute({ sock, msg, args, config }) {
+  async execute({ sock, msg, args }) {
     if (args.length === 0) {
-      return sock.sendMessage(msg.key.remoteJid, { text: "Por favor, proporciona el nombre de un video." }, { quoted: msg });
+      return sock.sendMessage(msg.key.remoteJid, { text: "Por favor, proporciona el nombre de una canción." }, { quoted: msg });
     }
 
     const query = args.join(' ');
@@ -22,35 +22,42 @@ const play2Command = {
         return sock.sendMessage(msg.key.remoteJid, { text: "No se encontraron resultados para tu búsqueda." }, { edit: waitingMsg.key });
       }
 
-      const caption = `*${video.title}*\n*Autor:* ${video.author.name}`;
-      await sock.sendMessage(msg.key.remoteJid, { text: `Procesando video para *${video.title}*...` }, { edit: waitingMsg.key });
+      await sock.sendMessage(msg.key.remoteJid, { text: `Procesando audio para *${video.title}*...` }, { edit: waitingMsg.key });
 
-      const apiUrl = `${config.api.ytmp4}?url=${video.url}`;
-      const response = await axios.get(apiUrl, { timeout: 120000 });
+      const apiUrl = 'https://downloader-api-7mul.onrender.com/api/download';
+      const response = await axios.post(
+        apiUrl,
+        { url: video.url },
+        { responseType: 'json', timeout: 120000 }
+      );
 
-      // Corregido para parsear la respuesta correcta de la API
-      const downloadUrl = response.data?.data?.download;
+      // Asumiendo la estructura de la respuesta de la API.
+      // Esto podría necesitar ajuste.
+      const downloadUrl = response.data?.video_url || response.data?.url || response.data?.link;
 
       if (!downloadUrl) {
+        console.error("Respuesta de la API sin URL:", response.data);
         throw new Error("La API no devolvió una URL de descarga válida.");
       }
 
       await sock.sendMessage(
         msg.key.remoteJid,
         {
-          video: { url: downloadUrl },
-          mimetype: 'video/mp4',
-          caption: caption
+          audio: { url: downloadUrl },
+          mimetype: 'audio/mpeg'
         },
         { quoted: msg }
       );
 
     } catch (error) {
-      console.error("Error en el comando play2:", error.message);
+      console.error("Error en el comando play2:", error);
+      const errorMessage = error.response ? JSON.stringify(error.response.data) : error.message;
+      console.error("Detalle del error:", errorMessage);
+
       if (error.code === 'ECONNABORTED') {
-        await sock.sendMessage(msg.key.remoteJid, { text: "El servidor de descargas tardó demasiado en responder." }, { quoted: msg });
+        await sock.sendMessage(msg.key.remoteJid, { text: "El servidor de descargas tardó demasiado en responder." }, { edit: waitingMsg.key, quoted: msg });
       } else {
-        await sock.sendMessage(msg.key.remoteJid, { text: "Ocurrió un error al procesar la solicitud de video." }, { quoted: msg });
+        await sock.sendMessage(msg.key.remoteJid, { text: `Ocurrió un error al procesar la solicitud de audio.`, edit: waitingMsg.key, quoted: msg });
       }
     }
   }
