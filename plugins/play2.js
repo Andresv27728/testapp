@@ -4,11 +4,11 @@ import axios from 'axios';
 const play2Command = {
   name: "play2",
   category: "descargas",
-  description: "Busca y descarga una canción en formato de audio (MP3) usando la API 2.",
+  description: "Busca y descarga un video en formato MP4.",
 
   async execute({ sock, msg, args }) {
     if (args.length === 0) {
-      return sock.sendMessage(msg.key.remoteJid, { text: "Por favor, proporciona el nombre de una canción." }, { quoted: msg });
+      return sock.sendMessage(msg.key.remoteJid, { text: "Por favor, proporciona el nombre de un video." }, { quoted: msg });
     }
 
     const query = args.join(' ');
@@ -22,7 +22,7 @@ const play2Command = {
         return sock.sendMessage(msg.key.remoteJid, { text: "No se encontraron resultados para tu búsqueda." }, { edit: waitingMsg.key });
       }
 
-      await sock.sendMessage(msg.key.remoteJid, { text: `Procesando audio para *${video.title}*...` }, { edit: waitingMsg.key });
+      await sock.sendMessage(msg.key.remoteJid, { text: `Procesando video para *${video.title}*...` }, { edit: waitingMsg.key });
 
       const apiUrl = 'https://downloader-api-7mul.onrender.com/api/download';
       const response = await axios.post(
@@ -43,8 +43,9 @@ const play2Command = {
       await sock.sendMessage(
         msg.key.remoteJid,
         {
-          audio: { url: downloadUrl },
-          mimetype: 'audio/mpeg'
+          video: { url: downloadUrl },
+          mimetype: 'video/mp4',
+          caption: video.title
         },
         { quoted: msg }
       );
@@ -57,7 +58,7 @@ const play2Command = {
       if (error.code === 'ECONNABORTED') {
         await sock.sendMessage(msg.key.remoteJid, { text: "El servidor de descargas tardó demasiado en responder." }, { edit: waitingMsg.key, quoted: msg });
       } else {
-        await sock.sendMessage(msg.key.remoteJid, { text: `Ocurrió un error al procesar la solicitud de audio.`, edit: waitingMsg.key, quoted: msg });
+        await sock.sendMessage(msg.key.remoteJid, { text: `Ocurrió un error al procesar la solicitud de video.`, edit: waitingMsg.key, quoted: msg });
       }
     }
   }
