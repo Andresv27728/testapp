@@ -1,7 +1,7 @@
 // Este es el manejador de mensajes que usarán los sub-bots y el bot principal.
 import { commands, aliases, testCache, cooldowns } from './index.js';
 import config from './config.js';
-import { readSettingsDb } from '../lib/database.js';
+import { readSettingsDb } from './lib/database.js';
 
 const COOLDOWN_SECONDS = 5;
 const RESPONSE_DELAY_MS = 2000;

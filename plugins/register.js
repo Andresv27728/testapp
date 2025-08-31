@@ -1,4 +1,4 @@
-import { readUsersDb, writeUsersDb } from '../../lib/database.js';
+import { readUsersDb, writeUsersDb } from '../lib/database.js';
 
 const INITIAL_COINS = 1000;
 

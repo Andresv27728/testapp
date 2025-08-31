@@ -1,4 +1,4 @@
-import { readUsersDb, writeUsersDb } from '../../lib/database.js';
+import { readUsersDb, writeUsersDb } from '../lib/database.js';
 
 const COOLDOWN_MS = 2 * 60 * 60 * 1000; // 2 horas
 const SUCCESS_CHANCE = 0.4; // 40% de éxito

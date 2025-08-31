@@ -1,4 +1,4 @@
-import { readSettingsDb, writeSettingsDb } from '../../lib/database.js';
+import { readSettingsDb, writeSettingsDb } from '../lib/database.js';
 
 const prefixCommand = {
   name: "prefijo",

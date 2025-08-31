@@ -1,4 +1,4 @@
-import { readUsersDb, writeUsersDb } from '../../lib/database.js';
+import { readUsersDb, writeUsersDb } from '../lib/database.js';
 
 const COOLDOWN_MS = 60 * 60 * 1000; // 1 hora
 

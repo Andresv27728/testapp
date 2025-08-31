@@ -1,4 +1,4 @@
-import { readUsersDb } from '../../lib/database.js';
+import { readUsersDb } from '../lib/database.js';
 
 const balanceCommand = {
   name: "balance",
