@@ -1,4 +1,4 @@
-import axios from 'axios';
+import youtubedl from 'youtube-dl-exec';
 
 const facebookCommand = {
   name: "facebook",
@@ -17,17 +17,14 @@ const facebookCommand = {
     const waitingMsg = await sock.sendMessage(msg.key.remoteJid, { text: `🌊 Procesando tu video...` }, { quoted: msg });
 
     try {
-      const apiUrl = `https://suhas-bro-api.vercel.app/download/fbdown?url=${encodeURIComponent(url)}`;
-      const response = await axios.get(apiUrl);
-      const result = response.data;
+      // Usa youtube-dl-exec para obtener el enlace de descarga directo
+      const downloadUrl = await youtubedl(url, {
+        getUrl: true,
+        format: 'best[ext=mp4][height<=720]/best[ext=mp4]'
+      });
 
-      // La estructura de la respuesta es desconocida, intentamos adivinar.
-      // Comprobamos propiedades comunes para un enlace de descarga.
-      const downloadUrl = result.url || result.link || result.download || result.data || result.result;
-
-      if (!downloadUrl || typeof downloadUrl !== 'string') {
-        console.error("Respuesta de la API no contenía una URL válida:", result);
-        throw new Error("La API no devolvió una URL de descarga válida.");
+      if (!downloadUrl) {
+        throw new Error("No se pudo obtener la URL de descarga del video.");
       }
 
       await sock.sendMessage(
@@ -43,8 +40,13 @@ const facebookCommand = {
       await sock.sendMessage(msg.key.remoteJid, { text: `✅ ¡Video enviado!`, edit: waitingMsg.key });
 
     } catch (error) {
-      console.error("Error en el comando facebook (suhas-bro-api):", error);
-      await sock.sendMessage(msg.key.remoteJid, { text: `❌ Ocurrió un error. La API podría estar fallando o el enlace es inválido.`, edit: waitingMsg.key });
+      console.error("Error en el comando facebook (youtube-dl-exec):", error);
+      const errorMessage = error.stderr || error.message;
+      if (errorMessage.includes('proxy') || errorMessage.includes('HTTP Error 429')) {
+        await sock.sendMessage(msg.key.remoteJid, { text: "El servicio de descarga está sobrecargado o bloqueado. Inténtalo más tarde." }, { edit: waitingMsg.key, quoted: msg });
+      } else {
+        await sock.sendMessage(msg.key.remoteJid, { text: `❌ Ocurrió un error. El enlace puede ser inválido, privado o el servicio de descarga estar fallando.`, edit: waitingMsg.key, quoted: msg });
+      }
     }
   }
 };
