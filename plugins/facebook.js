@@ -1,51 +1,67 @@
-import axios from 'axios';
+import { igdl } from 'ruhend-scraper';
 
 const facebookCommand = {
   name: "facebook",
   category: "descargas",
   description: "Descarga un video de Facebook desde un enlace.",
-  aliases: ["fb"],
+  aliases: ["fb", "fbdl"],
 
   async execute({ sock, msg, args }) {
     const url = args[0];
+    const fbRegex = /https?:\/\/(www\.)?(facebook\.com|fb\.watch)\/[^\s]+/i;
 
-    if (!url || !(url.includes('facebook.com') || url.includes('fb.watch'))) {
-      await sock.sendMessage(msg.key.remoteJid, { text: "Por favor, proporciona un enlace válido de Facebook." }, { quoted: msg });
-      return;
+    if (!url || !fbRegex.test(url)) {
+      return sock.sendMessage(msg.key.remoteJid, { text: "Por favor, proporciona un enlace válido de Facebook." }, { quoted: msg });
     }
 
-    const waitingMsg = await sock.sendMessage(msg.key.remoteJid, { text: `Procesando enlace de Facebook...` }, { quoted: msg });
+    const sharkEmoji = '🦈';
+    const warningEmoji = '⚠️';
+    const waitingEmoji = '🌊';
+    const successEmoji = '✨';
+    const errorEmoji = '❌';
+    const oopsEmoji = '💢';
+
+    // No hay 'react' en este framework, así que enviamos un mensaje de espera
+    const waitingMsg = await sock.sendMessage(msg.key.remoteJid, { text: `${waitingEmoji} Procesando tu video, buba...` }, { quoted: msg });
+
+    let res;
+    try {
+        res = await igdl(url);
+    } catch (e) {
+        return sock.sendMessage(msg.key.remoteJid, { text: `${oopsEmoji} *Aww, algo salió mal desu~... ¡Revisa el enlace, buba!*` }, { quoted: msg });
+    }
+
+    let result = res.data;
+    if (!result || result.length === 0) {
+        return sock.sendMessage(msg.key.remoteJid, { text: `${warningEmoji} *Nada de nada ~ no encontré nada que descargar... buba! 🦈💦*` }, { quoted: msg });
+    }
+
+    let data;
+    try {
+        data = result.find(i => i.resolution === "720p (HD)") || result.find(i => i.resolution === "360p (SD)");
+    } catch (e) {
+        return sock.sendMessage(msg.key.remoteJid, { text: `${oopsEmoji} *Oopsie doopsie! Tuve problemas procesando los datos desu... 🦈💔*` }, { quoted: msg });
+    }
+
+    if (!data) {
+        return sock.sendMessage(msg.key.remoteJid, { text: `${warningEmoji} *Eh?? No encontré una resolución buena, uwu~ 💦*` }, { quoted: msg });
+    }
 
     try {
-      const apiUrl = `https://api.dreaded.site/api/facebook?url=${encodeURIComponent(url)}`;
-
-      // Pedimos la respuesta como un buffer de datos binarios
-      const response = await axios.get(apiUrl, {
-        responseType: 'arraybuffer',
-        timeout: 120000
-      });
-
-      const videoBuffer = Buffer.from(response.data, 'binary');
-
-      if (!videoBuffer || videoBuffer.length < 1000) { // Chequeo simple de que el buffer no esté vacío
-        throw new Error("La API no devolvió un video válido.");
-      }
-
-      await sock.sendMessage(msg.key.remoteJid, {
-        video: videoBuffer,
-        mimetype: 'video/mp4',
-        caption: "Aquí tienes tu video de Facebook."
-      }, { quoted: msg });
-
-      await sock.sendMessage(msg.key.remoteJid, { text: `✅ Video de Facebook enviado.`, edit: waitingMsg.key });
-
-    } catch (error) {
-      console.error("Error en el comando facebook:", error.message);
-      if (error.code === 'ECONNABORTED') {
-        await sock.sendMessage(msg.key.remoteJid, { text: "El servidor de descargas de Facebook tardó demasiado en responder." }, { quoted: msg });
-      } else {
-        await sock.sendMessage(msg.key.remoteJid, { text: "No se pudo descargar el video. El enlace podría ser inválido, privado o la API estar fallando." }, { quoted: msg });
-      }
+        await sock.sendMessage(
+            msg.key.remoteJid,
+            {
+                video: { url: data.url },
+                caption: `${sharkEmoji} *¡Aquí tienes, buba! Espero que te guste desu~ 🦈✨*`,
+                mimetype: 'video/mp4'
+            },
+            { quoted: msg }
+        );
+        // Editamos el mensaje de espera para confirmar el éxito
+        await sock.sendMessage(msg.key.remoteJid, { text: `${successEmoji} ¡Video enviado, buba!`, edit: waitingMsg.key });
+    } catch (e) {
+        console.error("Error al enviar video de Facebook:", e);
+        await sock.sendMessage(msg.key.remoteJid, { text: `${oopsEmoji} *¡Hyaaa! Algo falló al enviarte el video... ¡No te enojes conmigo desu~! 🦈💦*` }, { quoted: msg });
     }
   }
 };
