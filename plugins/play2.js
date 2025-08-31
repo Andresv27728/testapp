@@ -1,5 +1,5 @@
 import yts from 'yt-search';
-import axios from 'axios';
+import youtubedl from 'youtube-dl-exec';
 
 const play2Command = {
   name: "play2",
@@ -24,20 +24,14 @@ const play2Command = {
 
       await sock.sendMessage(msg.key.remoteJid, { text: `Procesando video para *${video.title}*...` }, { edit: waitingMsg.key });
 
-      const apiUrl = 'https://downloader-api-7mul.onrender.com/api/download';
-      const response = await axios.post(
-        apiUrl,
-        { url: video.url },
-        { responseType: 'json', timeout: 120000 }
-      );
-
-      // Asumiendo la estructura de la respuesta de la API.
-      // Esto podría necesitar ajuste.
-      const downloadUrl = response.data?.video_url || response.data?.url || response.data?.link;
+      // Usa youtube-dl-exec para obtener el enlace de descarga directo
+      const downloadUrl = await youtubedl(video.url, {
+        getUrl: true,
+        format: 'best[ext=mp4][height<=720]/best[ext=mp4]'
+      });
 
       if (!downloadUrl) {
-        console.error("Respuesta de la API sin URL:", response.data);
-        throw new Error("La API no devolvió una URL de descarga válida.");
+        throw new Error("No se pudo obtener la URL de descarga del video.");
       }
 
       await sock.sendMessage(
@@ -52,11 +46,11 @@ const play2Command = {
 
     } catch (error) {
       console.error("Error en el comando play2:", error);
-      const errorMessage = error.response ? JSON.stringify(error.response.data) : error.message;
+      const errorMessage = error.message;
       console.error("Detalle del error:", errorMessage);
 
-      if (error.code === 'ECONNABORTED') {
-        await sock.sendMessage(msg.key.remoteJid, { text: "El servidor de descargas tardó demasiado en responder." }, { edit: waitingMsg.key, quoted: msg });
+      if (error.stderr?.includes('proxy') || error.stderr?.includes('HTTP Error 429')) {
+        await sock.sendMessage(msg.key.remoteJid, { text: "El servicio de descarga está sobrecargado o bloqueado. Inténtalo más tarde." }, { edit: waitingMsg.key, quoted: msg });
       } else {
         await sock.sendMessage(msg.key.remoteJid, { text: `Ocurrió un error al procesar la solicitud de video.`, edit: waitingMsg.key, quoted: msg });
       }
