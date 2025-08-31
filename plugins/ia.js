@@ -15,7 +15,7 @@ const iaCommand = {
       await sock.sendMessage(msg.key.remoteJid, { text: "🧠 Pensando..." }, { quoted: msg });
 
       // Usamos la nueva API de voz
-      const apiUrl = `https://myapiadonix.vercel.app/api/adonixvoz?q=${encodeURIComponent(query)}`;
+      const apiUrl = `https://myapiadonix.vercel.app/ai/iavoz?q=${encodeURIComponent(query)}`;
 
       // La API devuelve directamente el audio, no un JSON.
       // Necesitamos obtener la respuesta como un stream/buffer.
