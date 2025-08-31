@@ -11,19 +11,21 @@ const iaCommand = {
       return sock.sendMessage(msg.key.remoteJid, { text: "Por favor, hazme una pregunta." }, { quoted: msg });
     }
 
-    try {
-      await sock.sendMessage(msg.key.remoteJid, { text: "🧠 Pensando..." }, { quoted: msg });
+    const waitingMsg = await sock.sendMessage(msg.key.remoteJid, { text: "🧠 Pensando..." }, { quoted: msg });
 
-      // Usamos la nueva API de voz
+    try {
       const apiUrl = `https://myapiadonix.vercel.app/ai/iavoz?q=${encodeURIComponent(query)}`;
 
-      // La API devuelve directamente el audio, no un JSON.
-      // Necesitamos obtener la respuesta como un stream/buffer.
-      const response = await axios.get(apiUrl, {
-        responseType: 'arraybuffer' // Importante para recibir archivos
-      });
+      // La API devuelve un JSON, no el audio directamente.
+      const response = await axios.get(apiUrl);
 
-      const audioBuffer = Buffer.from(response.data, 'binary');
+      const result = response.data;
+      if (!result.success || !result.audio_base64) {
+        throw new Error("La respuesta de la API no fue exitosa o no contenía audio.");
+      }
+
+      // Decodificar el audio de Base64 a un Buffer
+      const audioBuffer = Buffer.from(result.audio_base64, 'base64');
 
       // Enviar la respuesta como un mensaje de audio
       await sock.sendMessage(
@@ -31,14 +33,16 @@ const iaCommand = {
         {
           audio: audioBuffer,
           mimetype: 'audio/mpeg',
-          ptt: true // Enviar como PTT (Push-to-talk) para que se reproduzca automáticamente
+          ptt: true // Enviar como PTT (Push-to-talk)
         },
         { quoted: msg }
       );
 
+      await sock.sendMessage(msg.key.remoteJid, { text: `✅ *Respuesta de IA:* ${result.text}`, edit: waitingMsg.key });
+
     } catch (error) {
       console.error("Error en el comando ia (voz):", error.message);
-      await sock.sendMessage(msg.key.remoteJid, { text: "Ocurrió un error al contactar a la IA de voz." }, { quoted: msg });
+      await sock.sendMessage(msg.key.remoteJid, { text: "Ocurrió un error al contactar a la IA de voz." }, { quoted: msg, edit: waitingMsg.key });
     }
   }
 };
