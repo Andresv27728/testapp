@@ -95,28 +95,34 @@ async function connectToWhatsApp() {
   // La lógica de comandos se moverá a handler.js para ser reutilizable.
   sock.ev.on('messages.upsert', (m) => sock.handler(m, false)); // false porque este es el bot principal
 
-  // --- MANEJO DE BIENVENIDA ---
+  // --- MANEJO DE BIENVENIDA Y DESPEDIDA ---
   sock.ev.on('group-participants.update', async (event) => {
-      const { id, participants, action } = event;
-      const settingsDbPath = path.resolve('./database/groupSettings.json');
-      let settings = {};
-      try {
-        const data = fs.readFileSync(settingsDbPath, 'utf8');
-        settings = JSON.parse(data);
-      } catch (e) {}
+    const { id, participants, action } = event;
+    // Usamos la función centralizada de la base de datos
+    const { readSettingsDb } = await import('./lib/database.js');
+    const settings = readSettingsDb();
+    const groupSettings = settings[id];
 
-      if (!settings[id]?.welcome) return;
+    if (!groupSettings) return;
 
+    for (const p of participants) {
       try {
-        const metadata = await sock.groupMetadata(id);
-        for (const p of participants) {
-          const userName = `@${p.split('@')[0]}`;
-          const message = action === 'add'
-            ? `¡Bienvenido/a al grupo *${metadata.subject}*, ${userName}! 🎉`
-            : `Adiós, ${userName}. Te extrañaremos. 👋`;
+        const userName = `@${p.split('@')[0]}`;
+        let message = '';
+
+        if (action === 'add' && groupSettings.welcome && groupSettings.welcomeMessage) {
+          message = groupSettings.welcomeMessage.replace(/@user/g, userName);
+        } else if (action === 'remove' && groupSettings.bye && groupSettings.byeMessage) {
+          message = groupSettings.byeMessage.replace(/@user/g, userName);
+        }
+
+        if (message) {
           await sock.sendMessage(id, { text: message, mentions: [p] });
         }
-      } catch (e) { console.error("Error en group-participants.update:", e); }
+      } catch (e) {
+        console.error(`Error en group-participants.update para el participante ${p}:`, e);
+      }
+    }
   });
 
   return sock;
