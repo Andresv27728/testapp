@@ -1,69 +1,54 @@
 import axios from 'axios';
-import youtubedl from 'youtube-dl-exec';
 
 const spotifyCommand = {
   name: "spotify",
   category: "descargas",
-  description: "Busca una canción en Spotify y la descarga.",
-  aliases: ["spot"],
+  description: "Descarga una canción desde un enlace de Spotify.",
+  aliases: ["sp", "spotifydl"],
 
   async execute({ sock, msg, args }) {
-    const query = args.join(' ');
-    if (!query) {
-      return sock.sendMessage(msg.key.remoteJid, { text: "Por favor, proporciona el nombre de una canción para buscar en Spotify." }, { quoted: msg });
+    const url = args[0];
+    const spotifyRegex = /https?:\/\/open\.spotify\.com\/(track|playlist|album)\/[a-zA-Z0-9]+/;
+
+    if (!url || !spotifyRegex.test(url)) {
+      return sock.sendMessage(msg.key.remoteJid, { text: "🚩 Por favor, ingresa un enlace válido de Spotify (Track, Playlist o Álbum)." }, { quoted: msg });
     }
 
-    const waitingMsg = await sock.sendMessage(msg.key.remoteJid, { text: `🎶 Buscando "${query}" en Spotify...` }, { quoted: msg });
+    const waitingMsg = await sock.sendMessage(msg.key.remoteJid, { text: "🕓 Procesando enlace..." }, { quoted: msg });
 
     try {
-      // --- Paso 1: Obtener metadatos de Spotify ---
-      const spotifyApiUrl = `https://api.hanggts.xyz/download/playspotify?q=${encodeURIComponent(query)}`;
-      const spotifyResponse = await axios.get(spotifyApiUrl);
-      const spotifyData = spotifyResponse.data;
+      const apiUrl = `https://fastrestapis.fasturl.cloud/downup/spotifydown?url=${encodeURIComponent(url)}`;
+      const response = await axios.get(apiUrl);
+      const spotdl = response.data.result;
 
-      if (!spotifyData.status || !spotifyData.result || !spotifyData.result.metadata) {
-        throw new Error("No se pudo encontrar la canción en Spotify o la API falló.");
+      if (!spotdl || !spotdl.link) {
+        throw new Error("La API no devolvió un enlace de descarga válido.");
       }
 
-      const metadata = spotifyData.result.metadata;
-      const { title, artists, cover_url } = metadata;
-      const artistString = Array.isArray(artists) ? artists.join(', ') : artists;
+      const metadata = spotdl.metadata;
+      const coverImage = await axios.get(metadata.cover, { responseType: 'arraybuffer' });
 
-      await sock.sendMessage(msg.key.remoteJid, { text: `✅ Canción encontrada: *${title} - ${artistString}*.\n\n⬇️ Ahora descargando el audio desde YouTube...` }, { edit: waitingMsg.key });
+      let caption = `*乂  S P O T I F Y  -  D O W N L O A D*\n\n`;
+      caption += `    ✩  *Título* : ${metadata.title}\n`;
+      caption += `    ✩  *Artista* : ${metadata.artist}\n`;
+      caption += `    ✩  *Álbum* : ${metadata.album}\n`;
+      caption += `    ✩  *Lanzamiento* : ${metadata.releaseDate}\n\n`;
+      caption += `*- ↻ Enviando audio, espera un momento...*`;
 
-      // --- Paso 2: Descargar audio desde YouTube ---
-      const ytSearchQuery = `${title} ${artistString} audio`;
-      const audioUrl = await youtubedl(ytSearchQuery, {
-        "default-search": "ytsearch",
-        "get-url": true,
-        "format": "bestaudio/best",
-      });
+      // Enviar carátula y metadatos
+      await sock.sendMessage(msg.key.remoteJid, { image: coverImage.data, caption: caption }, { quoted: msg });
 
-      if (!audioUrl) {
-        throw new Error("No se pudo encontrar el audio en YouTube.");
-      }
+      // Enviar audio
+      await sock.sendMessage(msg.key.remoteJid, {
+        audio: { url: spotdl.link },
+        mimetype: 'audio/mpeg'
+      }, { quoted: msg });
 
-      // --- Paso 3: Enviar el audio con metadatos ---
-      const messageOptions = {
-        audio: { url: audioUrl },
-        mimetype: 'audio/mpeg',
-        contextInfo: {
-          externalAdReply: {
-            title: title,
-            body: artistString,
-            thumbnail: (await axios.get(cover_url, { responseType: 'arraybuffer' })).data, // Descargar la carátula
-            mediaType: 1,
-            mediaUrl: metadata.link,
-            sourceUrl: metadata.link
-          }
-        }
-      };
-
-      await sock.sendMessage(msg.key.remoteJid, messageOptions, { quoted: msg });
+      await sock.sendMessage(msg.key.remoteJid, { text: "✅ Descarga completada." }, { edit: waitingMsg.key });
 
     } catch (error) {
-      console.error("Error en el comando spotify:", error);
-      await sock.sendMessage(msg.key.remoteJid, { text: `❌ Ocurrió un error: ${error.message}` }, { quoted: msg, edit: waitingMsg.key });
+      console.error('Error al procesar la descarga de Spotify:', error);
+      await sock.sendMessage(msg.key.remoteJid, { text: '✖️ Error al procesar la descarga. El enlace puede ser inválido o la API ha fallado.' }, { quoted: msg, edit: waitingMsg.key });
     }
   }
 };
