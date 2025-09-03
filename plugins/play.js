@@ -88,17 +88,16 @@ const playCommand = {
 
       // --- Sistema de Fallbacks ---
       try {
-        console.log("Intentando con el Método 1: yt-dlp");
+        // console.log("Intentando con el Método 1: yt-dlp");
         const tempFilePath = await downloadWithYtdlp(url);
         audioBuffer = fs.readFileSync(tempFilePath);
         fs.unlinkSync(tempFilePath); // Limpiar archivo temporal
-        source = "yt-dlp";
       } catch (e1) {
-        console.error("Método 1 (yt-dlp) falló:", e1.message);
-        await sock.sendMessage(msg.key.remoteJid, { text: `⚠️ Método 1 falló. Intentando con el Método 2...` }, { quoted: msg });
+        // console.error("Método 1 (yt-dlp) falló:", e1.message);
+        // await sock.sendMessage(msg.key.remoteJid, { text: `⚠️ Método 1 falló. Intentando con el Método 2...` }, { quoted: msg });
 
         try {
-            console.log("Intentando con el Método 2: ddownr");
+            // console.log("Intentando con el Método 2: ddownr");
             const downloadUrl = await downloadWithDdownr(url);
             const response = await axios.get(downloadUrl, { responseType: 'arraybuffer' });
             audioBuffer = response.data;
@@ -113,7 +112,7 @@ const playCommand = {
         throw new Error("El buffer de audio está vacío después de todos los intentos.");
       }
 
-      await sock.sendMessage(msg.key.remoteJid, { text: `✅ Descargado con éxito usando *${source}*. Enviando archivos...` }, { edit: waitingMsg.key });
+      await sock.sendMessage(msg.key.remoteJid, { text: `✅ Descarga completada. Enviando archivos...` }, { edit: waitingMsg.key });
 
       // Enviar como audio reproducible
       await sock.sendMessage(msg.key.remoteJid, { audio: audioBuffer, mimetype: 'audio/mpeg' }, { quoted: msg });
