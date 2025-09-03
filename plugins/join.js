@@ -1,33 +1,37 @@
 const joinCommand = {
   name: "join",
-  category: "propietario",
-  description: "Hace que el bot se una a un grupo mediante un enlace de invitación.",
+  category: "general",
+  description: "Solicita que el bot se una a un grupo de WhatsApp.",
 
   async execute({ sock, msg, args, config }) {
-    const senderId = msg.key.participant || msg.key.remoteJid;
-    const senderNumber = senderId.split('@')[0];
+    const link = args[0];
+    const linkRegex = /chat\.whatsapp\.com\/([0-9A-Za-z]{20,24})/;
+    const match = link?.match(linkRegex);
 
-    if (!config.ownerNumbers.includes(senderNumber)) {
-      return sock.sendMessage(msg.key.remoteJid, { text: "Este comando solo puede ser utilizado por el propietario del bot." }, { quoted: msg });
-    }
-
-    const inviteLink = args[0];
-    if (!inviteLink || !inviteLink.includes('chat.whatsapp.com')) {
+    if (!match) {
       return sock.sendMessage(msg.key.remoteJid, { text: "Por favor, proporciona un enlace de invitación de WhatsApp válido." }, { quoted: msg });
     }
 
+    const senderName = msg.pushName || msg.sender.split('@')[0];
+    const requestMessage = `🚨 *Solicitud para Unirse a Grupo* 🚨\n\n` +
+                           `*De:* ${senderName} (${msg.sender})\n` +
+                           `*Enlace:* ${link}\n\n` +
+                           `Para aceptar, usa el comando \`.joingroup ${link}\``;
+
     try {
-      const inviteCode = inviteLink.split('chat.whatsapp.com/')[1];
-      if (!inviteCode) {
-        return sock.sendMessage(msg.key.remoteJid, { text: "El enlace no parece tener un código de invitación válido." }, { quoted: msg });
+      // Enviar la solicitud a cada propietario
+      for (const owner of config.ownerNumbers) {
+        // Asegurarse de que el número de owner tenga el formato correcto de JID
+        const ownerJid = owner.endsWith('@s.whatsapp.net') ? owner : `${owner}@s.whatsapp.net`;
+        await sock.sendMessage(ownerJid, { text: requestMessage });
       }
 
-      await sock.groupAcceptInvite(inviteCode);
-      await sock.sendMessage(msg.key.remoteJid, { text: "✅ Me he unido al grupo exitosamente." }, { quoted: msg });
+      // Confirmar al usuario que la solicitud fue enviada
+      await sock.sendMessage(msg.key.remoteJid, { text: "✅ Tu solicitud ha sido enviada al propietario del bot para su aprobación." }, { quoted: msg });
 
-    } catch (e) {
-      console.error("Error en el comando join:", e);
-      await sock.sendMessage(msg.key.remoteJid, { text: "Ocurrió un error al intentar unirme al grupo. Es posible que el enlace haya expirado o que haya sido eliminado del grupo." }, { quoted: msg });
+    } catch (error) {
+      console.error("Error en el comando join:", error);
+      await sock.sendMessage(msg.key.remoteJid, { text: "Ocurrió un error al enviar tu solicitud al propietario." }, { quoted: msg });
     }
   }
 };
