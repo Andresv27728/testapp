@@ -1,9 +1,10 @@
+import { igdl } from "ruhend-scraper";
 import axios from 'axios';
 
 const instagramCommand = {
   name: "instagram",
   category: "descargas",
-  description: "Descarga videos o reels de Instagram.",
+  description: "Descarga todas las imágenes/videos de una publicación de Instagram.",
   aliases: ["ig", "igdl"],
 
   async execute({ sock, msg, args }) {
@@ -11,57 +12,43 @@ const instagramCommand = {
     const igRegex = /https?:\/\/(www\.)?instagram\.com\/(p|reel|tv)\/[a-zA-Z0-9\-_]+/;
 
     if (!url || !igRegex.test(url)) {
-      return sock.sendMessage(msg.key.remoteJid, { text: "🐬 Por favor, ingresa un enlace válido de Instagram." }, { quoted: msg });
+      return sock.sendMessage(msg.key.remoteJid, { text: "*[ ☃️ ] Ingresa un link de Instagram*" }, { quoted: msg });
     }
 
-    const waitingMsg = await sock.sendMessage(msg.key.remoteJid, { text: "🐬 Procesando tu enlace..." }, { quoted: msg });
+    const waitingMsg = await sock.sendMessage(msg.key.remoteJid, { text: `*[ 👁️ ] Cargando...*` }, { quoted: msg });
 
-    let res;
     try {
-      res = await axios.get(`https://apis-starlights-team.koyeb.app/starlight/instagram-dl?url=${encodeURIComponent(url)}`);
-    } catch (e) {
-      console.error("Error al llamar a la API de Instagram:", e);
-      return sock.sendMessage(msg.key.remoteJid, { text: '🐬 Error al obtener datos. Verifica el enlace o intenta más tarde.' }, { quoted: msg, edit: waitingMsg.key });
-    }
+      let res = await igdl(url);
+      let data = res.data;
 
-    const result = res.data;
-    if (!result || !result.data || result.data.length === 0) {
-      return sock.sendMessage(msg.key.remoteJid, { text: '🐬 No se encontraron resultados en la respuesta de la API.' }, { quoted: msg, edit: waitingMsg.key });
-    }
-
-    const videoData = result.data[0];
-    const downloadUrl = videoData.dl_url;
-
-    if (!downloadUrl) {
-      return sock.sendMessage(msg.key.remoteJid, { text: '🪼 No se encontró un enlace de descarga válido.' }, { quoted: msg, edit: waitingMsg.key });
-    }
-
-    // Lógica de reintentos para el envío del video
-    const maxRetries = 3;
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        await sock.sendMessage(
-          msg.key.remoteJid,
-          {
-            video: { url: downloadUrl },
-            caption: '🐬 ¡Aquí tienes tu video de Instagram!',
-            mimetype: 'video/mp4'
-          },
-          { quoted: msg }
-        );
-        await sock.sendMessage(msg.key.remoteJid, { text: '✅ ¡Video enviado!', edit: waitingMsg.key });
-        // Si el envío es exitoso, salimos del bucle
-        return;
-      } catch (e) {
-        console.error(`Intento ${attempt} fallido al enviar video de Instagram:`, e);
-        if (attempt === maxRetries) {
-          // Si todos los intentos fallan
-          await sock.sendMessage(msg.key.remoteJid, { text: '🐬 Error al enviar el video después de varios intentos.' }, { quoted: msg, edit: waitingMsg.key });
-        } else {
-          // Esperar 1 segundo antes de reintentar
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
+      if (!data || data.length === 0) {
+        throw new Error("No se encontró media en el enlace proporcionado.");
       }
+
+      await sock.sendMessage(msg.key.remoteJid, { text: `Encontrados ${data.length} archivos. Enviando...`}, { edit: waitingMsg.key });
+
+      for (const media of data) {
+        // Determinar si es video o imagen basado en la URL o una propiedad
+        const isVideo = media.url.includes('.mp4') || media.type === 'video';
+
+        const mediaOptions = {
+            caption: '*_DESCARGAS - INSTAGRAM_*\n\n> * [ 🍢 ] archivo descargado correctamente 🪘*',
+            mimetype: isVideo ? 'video/mp4' : 'image/jpeg',
+        };
+
+        if (isVideo) {
+            mediaOptions.video = { url: media.url };
+        } else {
+            mediaOptions.image = { url: media.url };
+        }
+
+        await sock.sendMessage(msg.key.remoteJid, mediaOptions, { quoted: msg });
+        await new Promise(resolve => setTimeout(resolve, 1500)); // Pausa entre envíos
+      }
+
+    } catch(e) {
+      console.error("Error en el comando instagram:", e);
+      await sock.sendMessage(msg.key.remoteJid, { text: '*[ 💨 ] OCURRIÓ UN ERROR. Verifica el enlace.' }, { quoted: msg, edit: waitingMsg.key });
     }
   }
 };

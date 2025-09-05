@@ -31,9 +31,12 @@ const COOLDOWN_SECONDS = 5;
 const RESPONSE_DELAY_MS = 2000;
 
 // --- FUNCIÓN PARA CARGAR COMANDOS ---
-async function loadCommands() {
+export async function loadCommands() {
+  // Limpiar mapas antes de cargar para permitir la recarga
+  commands.clear();
+  aliases.clear();
+
   const pluginsDir = path.join(__dirname, 'plugins');
-  if (commands.size > 0) return;
   try {
     const files = fs.readdirSync(pluginsDir).filter(file => file.endsWith('.js'));
     for (const file of files) {
