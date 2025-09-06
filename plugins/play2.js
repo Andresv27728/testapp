@@ -15,12 +15,22 @@ const play2Command = {
     let waitingMsg;
 
     try {
-      waitingMsg = await sock.sendMessage(msg.key.remoteJid, { text: `🎶 Buscando "${query}"...` }, { quoted: msg });
+      waitingMsg = await sock.sendMessage(msg.key.remoteJid, { text: `🎶 Procesando: "${query}"...` }, { quoted: msg });
 
-      const searchResults = await yts(query);
-      if (!searchResults.videos.length) throw new Error("No se encontraron resultados.");
+      // Detectar si el query es una URL de YouTube
+      const youtubeUrlRegex = /^(https?:\/\/)?(www\.)?(youtu\.be\/|youtube\.com\/(watch\?v=|embed\/|v\/|shorts\/))([\w-]{11})/;
+      const urlMatch = query.match(youtubeUrlRegex);
 
-      const videoInfo = searchResults.videos[0];
+      let videoInfo;
+      if (urlMatch) {
+        const videoId = urlMatch[5];
+        videoInfo = await yts({ videoId });
+        if (!videoInfo) throw new Error("No se pudo encontrar información para la URL proporcionada.");
+      } else {
+        const searchResults = await yts(query);
+        if (!searchResults.videos.length) throw new Error("No se encontraron resultados para la búsqueda.");
+        videoInfo = searchResults.videos[0];
+      }
       const { title, url } = videoInfo;
 
       // Verificar la duración del video
