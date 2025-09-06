@@ -1,7 +1,7 @@
 import yts from 'yt-search';
 import fs from 'fs';
 import axios from 'axios';
-import { downloadWithYtdlp, downloadWithDdownr, downloadWithAdonix } from '../lib/downloaders.js';
+import { downloadWithYtdlp, downloadWithMaya } from '../lib/downloaders.js';
 
 let isDownloadingArtist = false; // Flag para prevenir ejecuciones concurrentes
 
@@ -44,27 +44,20 @@ const artistaCommand = {
 
         let audioBuffer;
         try {
-          // Plan A: Adonix API
-          const adonixUrl = await downloadWithAdonix(track.url);
-          audioBuffer = (await axios.get(adonixUrl, { responseType: 'arraybuffer' })).data;
+          // Plan A: yt-dlp
+          const tempFilePath = await downloadWithYtdlp(track.url, false);
+          audioBuffer = fs.readFileSync(tempFilePath);
+          fs.unlinkSync(tempFilePath);
         } catch (e1) {
-          console.error(`artista: Adonix failed for ${trackTitle}:`, e1.message);
+          console.error(`artista: yt-dlp failed for ${trackTitle}:`, e1.message);
           try {
-            // Plan B: yt-dlp
-            const tempFilePath = await downloadWithYtdlp(track.url, false);
-            audioBuffer = fs.readFileSync(tempFilePath);
-            fs.unlinkSync(tempFilePath);
+            // Plan B: Maya API
+            const mayaUrl = await downloadWithMaya(track.url, false);
+            audioBuffer = (await axios.get(mayaUrl, { responseType: 'arraybuffer' })).data;
           } catch (e2) {
-            console.error(`artista: yt-dlp failed for ${trackTitle}:`, e2.message);
-            try {
-                // Plan C: ddownr
-                const ddownrUrl = await downloadWithDdownr(track.url, false);
-                audioBuffer = (await axios.get(ddownrUrl, { responseType: 'arraybuffer' })).data;
-            } catch (e3) {
-                console.error(`artista: ddownr failed for ${trackTitle}:`, e3.message);
-                await sock.sendMessage(msg.key.remoteJid, { text: `❌ Falló la descarga de *${trackTitle}*. Saltando a la siguiente.` }, { quoted: msg });
-                continue; // Saltar a la siguiente canción
-            }
+            console.error(`artista: Maya API failed for ${trackTitle}:`, e2.message);
+            await sock.sendMessage(msg.key.remoteJid, { text: `❌ Falló la descarga de *${trackTitle}*. Saltando a la siguiente.` }, { quoted: msg });
+            continue; // Saltar a la siguiente canción
           }
         }
 

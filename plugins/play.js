@@ -1,7 +1,7 @@
 import yts from 'yt-search';
 import fs from 'fs';
 import axios from 'axios';
-import { downloadWithYtdlp, downloadWithDdownr } from '../lib/downloaders.js';
+import { downloadWithYtdlp, downloadWithMaya } from '../lib/downloaders.js';
 
 const playCommand = {
   name: "play",
@@ -37,11 +37,11 @@ const playCommand = {
       } catch (e1) {
         console.error("play: yt-dlp failed:", e1.message);
         try {
-            const downloadUrl = await downloadWithDdownr(url, false); // false para audio
+            const downloadUrl = await downloadWithMaya(url, false); // false para audio
             const response = await axios.get(downloadUrl, { responseType: 'arraybuffer' });
             audioBuffer = response.data;
         } catch (e2) {
-            console.error("play: ddownr failed:", e2.message);
+            console.error("play: Maya API failed:", e2.message);
             throw new Error("Todos los métodos de descarga han fallado.");
         }
       }
