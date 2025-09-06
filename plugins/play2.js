@@ -45,18 +45,20 @@ const play2Command = {
 
       // --- Fallback System ---
       try {
-        const tempFilePath = await downloadWithYtdlp(url, true); // true para video
-        videoBuffer = fs.readFileSync(tempFilePath);
-        fs.unlinkSync(tempFilePath);
+        // Plan A: Maya API
+        const downloadUrl = await downloadWithMaya(url, true);
+        const response = await axios.get(downloadUrl, { responseType: 'arraybuffer' });
+        videoBuffer = response.data;
       } catch (e1) {
-        console.error("play2: yt-dlp failed:", e1.message);
+        console.error("play2: Maya API failed:", e1.message);
         try {
-            const downloadUrl = await downloadWithMaya(url, true); // true para video
-            const response = await axios.get(downloadUrl, { responseType: 'arraybuffer' });
-            videoBuffer = response.data;
+          // Plan B: yt-dlp
+          const tempFilePath = await downloadWithYtdlp(url, true);
+          videoBuffer = fs.readFileSync(tempFilePath);
+          fs.unlinkSync(tempFilePath);
         } catch (e2) {
-            console.error("play2: Maya API failed:", e2.message);
-            throw new Error("Todos los métodos de descarga de video han fallado.");
+          console.error("play2: yt-dlp failed:", e2.message);
+          throw new Error("Todos los métodos de descarga de video han fallado.");
         }
       }
 

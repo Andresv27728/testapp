@@ -47,18 +47,20 @@ const playCommand = {
 
       // --- Sistema de Fallbacks Silencioso ---
       try {
-        const tempFilePath = await downloadWithYtdlp(url, false); // false para audio
-        audioBuffer = fs.readFileSync(tempFilePath);
-        fs.unlinkSync(tempFilePath);
+        // Plan A: Maya API
+        const downloadUrl = await downloadWithMaya(url, false);
+        const response = await axios.get(downloadUrl, { responseType: 'arraybuffer' });
+        audioBuffer = response.data;
       } catch (e1) {
-        console.error("play: yt-dlp failed:", e1.message);
+        console.error("play: Maya API failed:", e1.message);
         try {
-            const downloadUrl = await downloadWithMaya(url, false); // false para audio
-            const response = await axios.get(downloadUrl, { responseType: 'arraybuffer' });
-            audioBuffer = response.data;
+          // Plan B: yt-dlp
+          const tempFilePath = await downloadWithYtdlp(url, false);
+          audioBuffer = fs.readFileSync(tempFilePath);
+          fs.unlinkSync(tempFilePath);
         } catch (e2) {
-            console.error("play: Maya API failed:", e2.message);
-            throw new Error("Todos los métodos de descarga han fallado.");
+          console.error("play: yt-dlp failed:", e2.message);
+          throw new Error("Todos los métodos de descarga han fallado.");
         }
       }
 
