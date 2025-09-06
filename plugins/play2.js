@@ -1,18 +1,7 @@
 import yts from 'yt-search';
 import fs from 'fs';
 import axios from 'axios';
-import { downloadWithYtdlp, downloadWithDdownr } from '../lib/downloaders.js';
-
-// Helper for the extra APIs
-async function downloadWithApi(apiUrl) {
-    const response = await axios.get(apiUrl);
-    const result = response.data;
-    const downloadUrl = result?.result?.downloadUrl || result?.result?.url || result?.data?.dl || result?.dl;
-    if (!downloadUrl) throw new Error(`API ${apiUrl} did not return a valid download link.`);
-
-    const file = await axios.get(downloadUrl, { responseType: 'arraybuffer' });
-    return file.data;
-}
+import { downloadWithYtdlp, downloadWithMaya } from '../lib/downloaders.js';
 
 const play2Command = {
   name: "play2",
@@ -46,27 +35,12 @@ const play2Command = {
       } catch (e1) {
         console.error("play2: yt-dlp failed:", e1.message);
         try {
-          const downloadUrl = await downloadWithDdownr(url, true); // true para video
-          const response = await axios.get(downloadUrl, { responseType: 'arraybuffer' });
-          videoBuffer = response.data;
+            const downloadUrl = await downloadWithMaya(url, true); // true para video
+            const response = await axios.get(downloadUrl, { responseType: 'arraybuffer' });
+            videoBuffer = response.data;
         } catch (e2) {
-          console.error("play2: ddownr failed:", e2.message);
-          const fallbackApis = [
-            `https://api.siputzx.my.id/api/d/ytmp4?url=${encodeURIComponent(url)}`,
-            `https://mahiru-shiina.vercel.app/download/ytmp4?url=${encodeURIComponent(url)}`,
-            `https://api.agungny.my.id/api/youtube-video?url=${encodeURIComponent(url)}`
-          ];
-          let success = false;
-          for (const apiUrl of fallbackApis) {
-            try {
-              videoBuffer = await downloadWithApi(apiUrl);
-              success = true;
-              break;
-            } catch (e3) {
-              console.error(`API ${apiUrl} failed:`, e3.message);
-            }
-          }
-          if (!success) throw new Error("Todos los métodos de descarga de video han fallado.");
+            console.error("play2: Maya API failed:", e2.message);
+            throw new Error("Todos los métodos de descarga de video han fallado.");
         }
       }
 
