@@ -22,4 +22,8 @@ echo ">>> [Paso 2/3] Instalando/actualizando dependencias de Node.js..."
 npm install --silent
 
 echo ">>> [Paso 3/3] Iniciando el bot..."
-node index.js
+while true; do
+    node index.js
+    echo ">>> ¡El bot se ha detenido! Reiniciando en 1 segundo..."
+    sleep 1
+done
